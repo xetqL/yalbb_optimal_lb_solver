@@ -107,6 +107,15 @@ int main(int argc, char** argv) {
     double load_balancing_cost = 0;
     double load_balancing_parallel_efficiency = 0;
 
+    /** Experience Without **/
+    {
+        if(!rank) std::cout << "SIM (NoLB Criterion): Computation is starting" << std::endl;
+        auto mesh_data = particles;
+        Probe probe(nproc);
+        PolicyExecutor menon_criterion_policy(&probe,[](Probe &probe) { return false; });
+        simulate<N>(zlb, &mesh_data, &menon_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "nolb_");
+    }
+
     {
         auto mesh_data = particles;
         if(!rank) std::cout << "SIM (A* optimized): Computation is starting" << std::endl;
