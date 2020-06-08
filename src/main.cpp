@@ -15,7 +15,9 @@
 #include "spatial_elements.hpp"
 
 template<int N>
-void generate_random_particles(MESH_DATA<elements::Element<N>>& mesh, sim_param_t params){
+MESH_DATA<elements::Element<N>> generate_random_particles(int rank, sim_param_t params){
+    MESH_DATA<elements::Element<N>> mesh;
+    if (!rank) {
     std::cout << "Generating data ..." << std::endl;
     std::shared_ptr<initial_condition::lj::RejectionCondition<N>> condition;
     const int MAX_TRIAL = 1000000;
@@ -26,13 +28,14 @@ void generate_random_particles(MESH_DATA<elements::Element<N>>& mesh, sim_param_
     initial_condition::lj::UniformRandomElementsGenerator<N>(params.seed, MAX_TRIAL)
             .generate_elements(mesh.els, params.npart, condition);
     std::cout << mesh.els.size() << " Done !" << std::endl;
+    }
+    return mesh;
 }
 
 int main(int argc, char** argv) {
     constexpr int N = 3;
     int rank, nproc;
     float ver;
-    MESH_DATA<elements::Element<N>> particles;
 
     std::cout << std::fixed << std::setprecision(6);
 
@@ -73,9 +76,7 @@ int main(int argc, char** argv) {
     ////////////////////////////////////////START PARITCLE INITIALIZATION///////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    if (rank == 0) {
-        generate_random_particles<N>(particles, params);
-    }
+    const MESH_DATA<elements::Element<N>> particles = generate_random_particles<N>(rank, params);
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /////////////////////////////////////FINISHED PARITCLE INITIALIZATION///////////////////////////////////////////////
@@ -107,19 +108,20 @@ int main(int argc, char** argv) {
     double load_balancing_cost = 0;
     double load_balancing_parallel_efficiency = 0;
 
-    /** Experience Without **/
+    /* Experience Without 
     {
         if(!rank) std::cout << "SIM (NoLB Criterion): Computation is starting" << std::endl;
         auto mesh_data = particles;
         Probe probe(nproc);
         PolicyExecutor menon_criterion_policy(&probe,[](Probe &probe) { return false; });
-        simulate<N>(zlb, &mesh_data, &menon_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "nolb_");
+        simulate<N>(zlb, &mesh_data, &menon_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "nolb");
     }
+    */
 
     {
         auto mesh_data = particles;
         if(!rank) std::cout << "SIM (A* optimized): Computation is starting" << std::endl;
-        Probe solution_stats = simulate_shortest_path<N>(zlb, &mesh_data,  fWrapper, &params, datatype, [](Zoltan_Struct* lb){ return Zoltan_Copy(lb);}, [](Zoltan_Struct* lb){ Zoltan_Destroy(&lb);}, APP_COMM, "menon_");
+        Probe solution_stats = simulate_shortest_path<N>(zlb, &mesh_data,  fWrapper, &params, datatype, [](Zoltan_Struct* lb){ return Zoltan_Copy(lb);}, [](Zoltan_Struct* lb){ Zoltan_Destroy(&lb);}, APP_COMM, "astar");
         load_balancing_cost = solution_stats.compute_avg_lb_time();
         load_balancing_parallel_efficiency = solution_stats.compute_avg_lb_parallel_efficiency();
     }
@@ -131,9 +133,10 @@ int main(int argc, char** argv) {
         Probe probe(nproc);
         probe.push_load_balancing_time(load_balancing_cost);
         PolicyExecutor menon_criterion_policy(&probe,[nframes=params.nframes, npframe = params.npframe](Probe &probe) {
-            return (probe.get_current_iteration() % npframe == 0) && (probe.get_cumulative_imbalance_time() >= probe.compute_avg_lb_time());
+            bool is_new_batch = (probe.get_current_iteration() % npframe == 0);
+            return is_new_batch && (probe.get_cumulative_imbalance_time() >= probe.compute_avg_lb_time());
         });
-        simulate<N>(zlb, &mesh_data, &menon_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "menon_");
+        simulate<N>(zlb, &mesh_data, &menon_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "menon");
     }
 
     /** Experience Procassini **/
@@ -154,12 +157,12 @@ int main(int argc, char** argv) {
                 Real epsilon_c = probe.get_efficiency();
                 Real epsilon_lb= probe.compute_avg_lb_parallel_efficiency(); //estimation based on previous lb call
                 Real S         = epsilon_c / epsilon_lb;
-                Real tau_prime = probe.get_max_it() *  S + probe.compute_avg_lb_time(); //estimation of next iteration time based on speed up + LB cost
-                Real tau       = probe.get_max_it();
+                Real tau_prime = probe.get_batch_time() *  S + probe.compute_avg_lb_time(); //estimation of next iteration time based on speed up + LB cost
+                Real tau       = probe.get_batch_time();
                 return is_new_batch && (tau_prime < tau);
             });
 
-        simulate<N>(zlb, &mesh_data, &procassini_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "menon_");
+        simulate<N>(zlb, &mesh_data, &procassini_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "procassini");
     }
 
     /** Experience Marquez **/
@@ -171,7 +174,7 @@ int main(int argc, char** argv) {
         }
         Probe probe(nproc);
         PolicyExecutor marquez_criterion_policy(&probe,
-            [rank, threshold = 0.1, npframe = params.npframe](Probe probe){
+            [rank, threshold = 0.05, npframe = params.npframe](Probe probe){
                 bool is_new_batch = (probe.get_current_iteration() % npframe == 0);
                 Real tolerance      = probe.get_avg_it() * threshold;
                 Real tolerance_plus = probe.get_avg_it() + tolerance;
@@ -179,7 +182,7 @@ int main(int argc, char** argv) {
                 return is_new_batch && (probe.get_min_it() < tolerance_minus || tolerance_plus < probe.get_max_it());
             });
 
-        simulate<N>(zlb, &mesh_data, &marquez_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "menon_");
+        simulate<N>(zlb, &mesh_data, &marquez_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "marquez");
     }
 
     MPI_Finalize();
