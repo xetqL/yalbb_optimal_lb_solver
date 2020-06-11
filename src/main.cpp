@@ -70,7 +70,7 @@ int main(int argc, char** argv) {
         exit(EXIT_FAILURE);
     }
 
-    auto zlb = zoltan_create_wrapper(APP_COMM);
+    auto zz = zoltan_create_wrapper(APP_COMM);
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////////////START PARITCLE INITIALIZATION///////////////////////////////////////////////
@@ -117,17 +117,32 @@ int main(int argc, char** argv) {
         simulate<N>(zlb, &mesh_data, &menon_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "nolb");
     }
     */
-
-    {
-        auto mesh_data = particles;
+    std::vector<int> opt_scenario;
+    Probe solution_stats(nproc);
+    if(params.nb_best_path){
+        auto zlb = Zoltan_Copy(zz);
+	auto mesh_data = particles;
         if(!rank) std::cout << "SIM (A* optimized): Computation is starting" << std::endl;
-        Probe solution_stats = simulate_shortest_path<N>(zlb, &mesh_data,  fWrapper, &params, datatype, [](Zoltan_Struct* lb){ return Zoltan_Copy(lb);}, [](Zoltan_Struct* lb){ Zoltan_Destroy(&lb);}, APP_COMM, "astar");
+        std::tie(solution_stats,opt_scenario) = simulate_shortest_path<N>(zlb, &mesh_data,  fWrapper, &params, datatype, [](Zoltan_Struct* lb){ return Zoltan_Copy(lb);}, [](Zoltan_Struct* lb){ Zoltan_Destroy(&lb);}, APP_COMM, "astar");
         load_balancing_cost = solution_stats.compute_avg_lb_time();
         load_balancing_parallel_efficiency = solution_stats.compute_avg_lb_parallel_efficiency();
+        /** Experience Reproduce ASTAR **/
+        {
+            auto zlb = Zoltan_Copy(zz);
+            if(!rank) std::cout << "SIM (ASTAR Criterion): Computation is starting" << std::endl;
+            auto mesh_data = particles;
+            Probe probe(nproc);
+            probe.push_load_balancing_time(load_balancing_cost);
+            PolicyExecutor menon_criterion_policy(&probe,[opt_scenario](Probe &probe) {
+                return (bool) opt_scenario.at(probe.get_current_iteration());
+            });
+            simulate<N>(zlb, &mesh_data, &menon_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "astar_mimic");
+        }
     }
 
     /** Experience Menon **/
     {
+        auto zlb = Zoltan_Copy(zz);
         if(!rank) std::cout << "SIM (Menon Criterion): Computation is starting" << std::endl;
         auto mesh_data = particles;
         Probe probe(nproc);
@@ -141,6 +156,7 @@ int main(int argc, char** argv) {
 
     /** Experience Procassini **/
     {
+        auto zlb = Zoltan_Copy(zz);
         auto mesh_data = particles;
         Probe probe(nproc);
         probe.push_load_balancing_time(load_balancing_cost);
@@ -167,6 +183,7 @@ int main(int argc, char** argv) {
 
     /** Experience Marquez **/
     {
+        auto zlb = Zoltan_Copy(zz);
         auto mesh_data = particles;
 
         if(!rank) {
