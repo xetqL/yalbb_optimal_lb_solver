@@ -119,9 +119,10 @@ int main(int argc, char** argv) {
     */
     std::vector<int> opt_scenario;
     Probe solution_stats(nproc);
-    if(params.nb_best_path){
+    std::cout << params.nb_best_path << std::endl;
+    if(params.nb_best_path) {
         auto zlb = Zoltan_Copy(zz);
-	auto mesh_data = particles;
+	    auto mesh_data = particles;
         if(!rank) std::cout << "SIM (A* optimized): Computation is starting" << std::endl;
         std::tie(solution_stats,opt_scenario) = simulate_shortest_path<N>(zlb, &mesh_data,  fWrapper, &params, datatype, [](Zoltan_Struct* lb){ return Zoltan_Copy(lb);}, [](Zoltan_Struct* lb){ Zoltan_Destroy(&lb);}, APP_COMM, "astar");
         load_balancing_cost = solution_stats.compute_avg_lb_time();
@@ -168,7 +169,7 @@ int main(int argc, char** argv) {
         }
 
         PolicyExecutor procassini_criterion_policy(&probe,
-        [npframe = params.npframe](Probe probe){
+        [npframe = params.npframe](Probe probe) {
                 bool is_new_batch = (probe.get_current_iteration() % npframe == 0);
                 Real epsilon_c = probe.get_efficiency();
                 Real epsilon_lb= probe.compute_avg_lb_parallel_efficiency(); //estimation based on previous lb call
