@@ -297,7 +297,7 @@ namespace elements {
     MPI_Datatype register_datatype() {
         MPI_Datatype element_datatype, vec_datatype, oldtype_element[2];
 
-        MPI_Aint offset[2], intex;
+        MPI_Aint offset[2], lb, intex;
 
         int blockcount_element[2];
 
@@ -315,11 +315,13 @@ namespace elements {
         oldtype_element[0] = MPI_LONG_LONG;
         oldtype_element[1] = vec_datatype;
 
-        MPI_Type_extent(MPI_LONG_LONG, &intex);
+        MPI_Type_get_extent(MPI_LONG_LONG, &lb, &intex);
+
         offset[0] = static_cast<MPI_Aint>(0);
         offset[1] = blockcount_element[0] * intex;
 
-        MPI_Type_struct(2, blockcount_element, offset, oldtype_element, &element_datatype);
+        MPI_Type_create_struct(2, blockcount_element, offset, oldtype_element, &element_datatype);
+
         MPI_Type_commit(&element_datatype);
 
         return element_datatype;
