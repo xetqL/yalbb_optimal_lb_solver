@@ -17,18 +17,20 @@
 template<int N>
 MESH_DATA<elements::Element<N>> generate_random_particles(int rank, sim_param_t params){
     MESH_DATA<elements::Element<N>> mesh;
+
     if (!rank) {
-    std::cout << "Generating data ..." << std::endl;
-    std::shared_ptr<initial_condition::lj::RejectionCondition<N>> condition;
-    const int MAX_TRIAL = 1000000;
-    condition = std::make_shared<initial_condition::lj::RejectionCondition<N>>(
-            &(mesh.els), params.sig_lj, params.sig_lj * params.sig_lj, params.T0, 0, 0, 0,
-            params.simsize, params.simsize, params.simsize, &params
-    );
-    initial_condition::lj::UniformRandomElementsGenerator<N>(params.seed, MAX_TRIAL)
-            .generate_elements(mesh.els, params.npart, condition);
-    std::cout << mesh.els.size() << " Done !" << std::endl;
+        std::cout << "Generating data ..." << std::endl;
+        std::shared_ptr<initial_condition::lj::RejectionCondition<N>> condition;
+        const int MAX_TRIAL = 1000000;
+        condition = std::make_shared<initial_condition::lj::RejectionCondition<N>>(
+                &(mesh.els), params.sig_lj, params.sig_lj * params.sig_lj, params.T0, 0, 0, 0,
+                params.simsize, params.simsize, params.simsize, &params
+        );
+        initial_condition::lj::SphericalRandomElementsGenerator<N>(params.seed, MAX_TRIAL)
+                .generate_elements(mesh.els, params.npart, condition);
+        std::cout << mesh.els.size() << " Done !" << std::endl;
     }
+
     return mesh;
 }
 

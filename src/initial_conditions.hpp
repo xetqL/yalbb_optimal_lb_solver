@@ -96,6 +96,7 @@ public:
         const Real dblT0Sqr = 2.0 * condition->T0 * condition->T0;
         std::normal_distribution<Real> temp_dist(0.0, dblT0Sqr);
         std::uniform_real_distribution<Real> utemp_dist(0.0, dblT0Sqr);
+
         std::uniform_real_distribution<Real>
             udistx(condition->xmin, condition->xmax),
             udisty(condition->ymin, condition->ymax),
@@ -207,6 +208,258 @@ public:
         }
     }
 };
+
+template<int N>
+class SphericalRandomElementsGenerator : public RandomElementsGenerator<N> {
+    int seed;
+
+    const int max_trial;
+public:
+    SphericalRandomElementsGenerator(int seed, const int max_trial = 10000) : seed(seed), max_trial(max_trial) {}
+
+    void generate_elements(std::vector<elements::Element<N>>& elements, const int n,
+                           const std::shared_ptr<lj::RejectionCondition<N>> condition) override {
+        int number_of_element_generated = 0;
+        const Real dblT0Sqr = 2.0 * condition->T0 * condition->T0;
+        std::normal_distribution<Real> temp_dist(0.0, dblT0Sqr);
+        std::uniform_real_distribution<Real> utemp_dist(0.0, dblT0Sqr);
+        Real cx = condition->params->simsize / 2.0, cy = condition->params->simsize / 2.0, cz = condition->params->simsize / 2.0;
+        statistic::UniformSphericalDistribution<N, Real> sphere(condition->params->simsize / 3.0, cx, cy, cz);
+
+        std::mt19937 my_gen(seed);
+        int trial = 0;
+        std::array<Real, N>  element_position, velocity;
+
+        Integer lcxyz;
+        std::array<Integer, N> lc;
+        Real cut_off = condition->params->rc;
+        lc[0] = (condition->xmax - condition->xmin) / cut_off;
+        lc[1] = (condition->ymax - condition->ymin) / cut_off;
+        lcxyz = lc[0] * lc[1];
+        if constexpr (N==3){
+            lc[2] = (condition->zmax - condition->zmin) / cut_off;
+            lcxyz *= lc[2];
+        }
+        const Integer EMPTY = -1;
+        std::vector<Integer> head(lcxyz, -1), lscl(n, -1);
+        Integer generated = elements.size();
+        std::array<Real, N> singularity = {cx, cy, cz};
+
+        while(generated < n) {
+            while(trial < max_trial) {
+                if constexpr (N==3) {
+                    element_position = sphere(my_gen);
+                    auto strength    = utemp_dist(my_gen);
+                    velocity         = {
+                            ((condition->xmin + singularity[0]) - element_position[0]) * strength,
+                            ((condition->ymin + singularity[1]) - element_position[1]) * strength,
+                            ((condition->zmin + singularity[2]) - element_position[2]) * strength
+                    };
+                } else {
+                    auto strength    = utemp_dist(my_gen);
+                    element_position = sphere(my_gen);
+                    velocity         = {
+                            ((condition->xmin + singularity[0]) - element_position[0]) * strength,
+                            ((condition->ymin + singularity[1]) - element_position[1]) * strength,
+                    };
+                }
+
+                auto element = elements::Element<N>(element_position, velocity, generated, generated);
+
+                std::array<Real, 3> delta_dim;
+                Integer c, c1,  j;
+                std::array<Integer, N> ic, ic1;
+                elements::Element<N> receiver;
+
+                c = position_to_cell<N>(element.position, cut_off, lc[0], lc[1]);
+
+                for(int d = 0; d < N; ++d)
+                    ic[d] = (element.position[d]) / cut_off;
+
+                bool accepted = true;
+                for (ic1[0] = (ic[0] - 1); ic1[0] <= (ic[0]+1); ic1[0]++) {
+                    for (ic1[1] = (ic[1] - 1); ic1[1] <= (ic[1] + 1); ic1[1]++) {
+                        if constexpr(N==3) {
+                            for (ic1[2] = (ic[2] - 1); ic1[2] <= (ic[2] + 1); ic1[2]++) {
+                                if ((ic1[0] < 0 || ic1[0] >= lc[0])
+                                    ||  (ic1[1] < 0 || ic1[1] >= lc[1]) ||
+                                    (ic1[2] < 0 || ic1[2] >= lc[2])) {
+                                    continue;
+                                }
+                                c1 = (ic1[0]) + (lc[0] * ic1[1]) + (lc[0] * lc[1] * ic1[2]);
+
+                                j = head[c1];
+
+                                while (j != EMPTY && accepted) {
+                                    receiver = elements[j];
+                                    if(elements::distance2(receiver, element) <= condition->min_r2) {
+                                        accepted = false;
+                                    }
+                                    j = lscl[j];
+                                }
+                            }
+                        }else{
+                            if ((ic1[0] < 0 || ic1[0] >= lc[0]) || (ic1[1] < 0 || ic1[1] >= lc[1])) {
+                                continue;
+                            }
+                            c1 = (ic1[0]) + (lc[0] * ic1[1]);
+
+                            j = head[c1];
+
+                            while (j != EMPTY && accepted) {
+                                receiver = elements[j];
+                                if(elements::distance2<N>(receiver, element) <= condition->min_r2) {
+                                    accepted = false;
+                                }
+                                j = lscl[j];
+                            }
+                        }
+                    }
+                }
+                if(accepted){
+                    trial = 0;
+                    CLL_append<N>(generated, c, element, &head, &lscl);
+                    elements.push_back(element);
+                    generated = elements.size();
+                    break;
+                } else {
+                    trial++;
+                }
+
+            }
+            if(trial == max_trial)
+                return; // when you cant generate new particles with less than max trials stop.
+        }
+    }
+};
+
+template<int N>
+class ParticleWallRandomElementsGenerator : public RandomElementsGenerator<N> {
+        int seed;
+
+        const int max_trial;
+    public:
+    ParticleWallRandomElementsGenerator(int seed, const int max_trial = 10000) : seed(seed), max_trial(max_trial) {}
+
+        void generate_elements(std::vector<elements::Element<N>>& elements, const int n,
+                               const std::shared_ptr<lj::RejectionCondition<N>> condition) override {
+            int number_of_element_generated = 0;
+
+            const Real dblT0Sqr = 2.0 * condition->T0 * condition->T0;
+
+            std::uniform_real_distribution<Real> utemp_dist(0.0, dblT0Sqr);
+
+            std::uniform_real_distribution<Real>
+                    udistx(condition->xmin, condition->xmax),
+                    udisty(condition->ymin, condition->ymax),
+                    udistz(condition->zmax/2.0-3.2*condition->params->rc, condition->zmax/2.0+3.2*condition->params->rc);
+
+            std::mt19937 my_gen(seed);
+            int trial = 0;
+            std::array<Real, N>  element_position, velocity;
+
+            Integer lcxyz;
+            std::array<Integer, N> lc;
+            Real cut_off = condition->params->rc;
+            lc[0] = (condition->xmax - condition->xmin) / cut_off;
+            lc[1] = (condition->ymax - condition->ymin) / cut_off;
+            lcxyz = lc[0] * lc[1];
+            if constexpr (N==3){
+                lc[2] = (condition->zmax - condition->zmin) / cut_off;
+                lcxyz *= lc[2];
+            }
+            const Integer EMPTY = -1;
+            std::vector<Integer> head(lcxyz, -1), lscl(n, -1);
+            Integer generated = elements.size();
+            std::array<Real, N> singularity;
+            std::generate(singularity.begin(), singularity.end(), [&my_gen, &udist=udistx](){return udist(my_gen);});
+            while(generated < n) {
+                while(trial < max_trial) {
+                    if constexpr (N==3) {
+                        element_position = { udistx(my_gen), udisty(my_gen), udistz(my_gen) };
+                        auto strength    = utemp_dist(my_gen);
+                        velocity         = {
+                                ((condition->xmin + singularity[0]) - element_position[0]) * strength,
+                                ((condition->ymin + singularity[1]) - element_position[1]) * strength,
+                                ((condition->zmin + singularity[2]) - element_position[2]) * strength
+                        };
+                    } else {
+                        auto strength    = utemp_dist(my_gen);
+                        element_position = { udistx(my_gen), udisty(my_gen)};
+                        velocity         = {
+                                ((condition->xmin + singularity[0]) - element_position[0]) * strength,
+                                ((condition->ymin + singularity[1]) - element_position[1]) * strength,
+                        };
+                    }
+
+                    auto element = elements::Element<N>(element_position, velocity, generated, generated);
+
+                    std::array<Real, 3> delta_dim;
+                    Integer c, c1,  j;
+                    std::array<Integer, N> ic, ic1;
+                    elements::Element<N> receiver;
+
+                    c = position_to_cell<N>(element.position, cut_off, lc[0], lc[1]);
+
+                    for(int d = 0; d < N; ++d)
+                        ic[d] = (element.position[d]) / cut_off;
+
+                    bool accepted = true;
+                    for (ic1[0] = (ic[0] - 1); ic1[0] <= (ic[0]+1); ic1[0]++) {
+                        for (ic1[1] = (ic[1] - 1); ic1[1] <= (ic[1] + 1); ic1[1]++) {
+                            if constexpr(N==3) {
+                                for (ic1[2] = (ic[2] - 1); ic1[2] <= (ic[2] + 1); ic1[2]++) {
+                                    if ((ic1[0] < 0 || ic1[0] >= lc[0])
+                                        ||  (ic1[1] < 0 || ic1[1] >= lc[1]) ||
+                                        (ic1[2] < 0 || ic1[2] >= lc[2])) {
+                                        continue;
+                                    }
+                                    c1 = (ic1[0]) + (lc[0] * ic1[1]) + (lc[0] * lc[1] * ic1[2]);
+
+                                    j = head[c1];
+
+                                    while (j != EMPTY && accepted) {
+                                        receiver = elements[j];
+                                        if(elements::distance2(receiver, element) <= condition->min_r2) {
+                                            accepted = false;
+                                        }
+                                        j = lscl[j];
+                                    }
+                                }
+                            }else{
+                                if ((ic1[0] < 0 || ic1[0] >= lc[0]) || (ic1[1] < 0 || ic1[1] >= lc[1])) {
+                                    continue;
+                                }
+                                c1 = (ic1[0]) + (lc[0] * ic1[1]);
+
+                                j = head[c1];
+
+                                while (j != EMPTY && accepted) {
+                                    receiver = elements[j];
+                                    if(elements::distance2<N>(receiver, element) <= condition->min_r2) {
+                                        accepted = false;
+                                    }
+                                    j = lscl[j];
+                                }
+                            }
+                        }
+                    }
+                    if(accepted){
+                        trial = 0;
+                        CLL_append<N>(generated, c, element, &head, &lscl);
+                        elements.push_back(element);
+                        generated = elements.size();
+                        break;
+                    } else {
+                        trial++;
+                    }
+
+                }
+                if(trial == max_trial)
+                    return; // when you cant generate new particles with less than max trials stop.
+            }
+        }
+    };
 
 } // end of namespace lennard_jones
 
