@@ -119,7 +119,6 @@ int main(int argc, char** argv) {
     */
     std::vector<int> opt_scenario;
     Probe solution_stats(nproc);
-    std::cout << params.nb_best_path << std::endl;
     if(params.nb_best_path) {
         auto zlb = Zoltan_Copy(zz);
 	    auto mesh_data = particles;

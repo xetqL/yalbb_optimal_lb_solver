@@ -18,8 +18,8 @@ find_package(Threads)
 find_package(MPI REQUIRED)
 # find YALBB
 
-find_library(YALBB_LIBRARY_PATH NAMES yalbb HINTS /home/xetql/yalbb/lib)
-find_path(YALBB_INCLUDE_DIRECTORY NAMES yalbb HINTS /home/xetql/yalbb/includes)
+find_library(YALBB_LIBRARY_PATH NAMES yalbb HINTS ${CMAKE_CURRENT_LIST_DIR}/yalbb/lib)
+find_path(YALBB_INCLUDE_DIRECTORY NAMES yalbb HINTS  ${CMAKE_CURRENT_LIST_DIR}/yalbb/includes)
 # find my LB library (zoltan as an example)
 set(ZOLTAN_INSTALL_FOLDER /usr/local CACHE PATH "zoltan install folder")
 find_library(ZOLTAN_LIBRARY_PATH NAMES zoltan HINTS ${ZOLTAN_INSTALL_FOLDER}/lib)
