@@ -19,7 +19,7 @@ static std::mt19937 __gen(__rd()); //Standard mersenne_twister_engine seeded wit
 template<class Candidate>
 class RejectionCondition {
 public:
-    virtual const bool predicate(const Candidate& c) const = 0;
+    virtual bool predicate(const Candidate& c) const = 0;
 };
 
 namespace lj {
