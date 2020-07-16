@@ -55,8 +55,8 @@ public:
             xmin(xmin), ymin(ymin), zmin(zmin),
             xmax(xmax), ymax(ymax), zmax(zmax), params(params) {}
 
-    const bool predicate(const elements::Element<N>& c) const override {
-        if (N > 2) {
+    bool predicate(const elements::Element<N>& c) const override {
+        if constexpr (N > 2) {
             return std::all_of(others->cbegin(), others->cend(), [&](auto o) {
                 return xmin < c.position.at(0) && c.position.at(0) < xmax &&
                        ymin < c.position.at(1) && c.position.at(1) < ymax &&
