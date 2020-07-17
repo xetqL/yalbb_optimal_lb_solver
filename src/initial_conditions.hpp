@@ -82,6 +82,122 @@ public:
 };
 
 namespace lj {
+
+
+template<int N>
+class RandomElementsGen {
+    std::shared_ptr<lj::RejectionCondition<N>> cond;
+    int seed, max_trial;
+public:
+    RandomElementsGen(int seed, int max_trial, std::shared_ptr<lj::RejectionCondition<N>> cond) :
+        seed(seed), max_trial(max_trial), cond(cond) {}
+
+    template<class PositionDist, class VelocityDist>
+    void generate_elements(std::vector<elements::Element<N>>& elements, const int n, PositionDist pdist, VelocityDist vdist)   {
+        int number_of_element_generated = 0;
+        const Real dblT0Sqr = 2.0 * cond->T0 * cond->T0;
+        //std::normal_distribution<Real> temp_dist(0.0, dblT0Sqr);
+        //std::uniform_real_distribution<Real> utemp_dist(0.0, dblT0Sqr);
+        //Real cx = cond->params->simsize / 2.0,
+        //     cy = cond->params->simsize / 2.0,
+        //     cz = cond->params->simsize / 2.0;
+        //statistic::UniformSphericalDistribution<N, Real> sphere(cond->params->simsize / 3.0, cx, cy, cz);
+
+        std::mt19937 my_gen(seed);
+
+        int trial = 0;
+        std::array<Real, N>  element_position, velocity;
+
+        Integer lcxyz;
+        std::array<Integer, N> lc;
+        Real cut_off = cond->params->rc;
+        lc[0] = (cond->xmax - cond->xmin) / cut_off;
+        lc[1] = (cond->ymax - cond->ymin) / cut_off;
+        lcxyz = lc[0] * lc[1];
+        if constexpr (N==3){
+            lc[2] = (cond->zmax - cond->zmin) / cut_off;
+            lcxyz *= lc[2];
+        }
+        const Integer EMPTY = -1;
+        std::vector<Integer> head(lcxyz, -1), lscl(n, -1);
+        Integer generated = elements.size();
+
+
+        while(generated < n) {
+            while(trial < max_trial) {
+
+                element_position = pdist(my_gen);
+                velocity         = vdist(my_gen);
+
+                auto element = elements::Element<N>(element_position, velocity, generated, generated);
+
+                std::array<Real, 3> delta_dim;
+                Integer c, c1,  j;
+                std::array<Integer, N> ic, ic1;
+                elements::Element<N> receiver;
+
+                c = position_to_cell<N>(element.position, cut_off, lc[0], lc[1]);
+
+                for(int d = 0; d < N; ++d)
+                    ic[d] = (element.position[d]) / cut_off;
+
+                bool accepted = true;
+                for (ic1[0] = (ic[0] - 1); ic1[0] <= (ic[0]+1); ic1[0]++) {
+                    for (ic1[1] = (ic[1] - 1); ic1[1] <= (ic[1] + 1); ic1[1]++) {
+                        if constexpr(N==3) {
+                            for (ic1[2] = (ic[2] - 1); ic1[2] <= (ic[2] + 1); ic1[2]++) {
+                                if ((ic1[0] < 0 || ic1[0] >= lc[0])
+                                    ||  (ic1[1] < 0 || ic1[1] >= lc[1]) ||
+                                    (ic1[2] < 0 || ic1[2] >= lc[2])) {
+                                    continue;
+                                }
+                                c1 = (ic1[0]) + (lc[0] * ic1[1]) + (lc[0] * lc[1] * ic1[2]);
+
+                                j = head[c1];
+
+                                while (j != EMPTY && accepted) {
+                                    receiver = elements[j];
+                                    if(elements::distance2(receiver, element) <= cond->min_r2) {
+                                        accepted = false;
+                                    }
+                                    j = lscl[j];
+                                }
+                            }
+                        }else{
+                            if ((ic1[0] < 0 || ic1[0] >= lc[0]) || (ic1[1] < 0 || ic1[1] >= lc[1])) {
+                                continue;
+                            }
+                            c1 = (ic1[0]) + (lc[0] * ic1[1]);
+
+                            j = head[c1];
+
+                            while (j != EMPTY && accepted) {
+                                receiver = elements[j];
+                                if(elements::distance2<N>(receiver, element) <= cond->min_r2) {
+                                    accepted = false;
+                                }
+                                j = lscl[j];
+                            }
+                        }
+                    }
+                }
+                if(accepted){
+                    trial = 0;
+                    CLL_append<N>(generated, c, element, &head, &lscl);
+                    elements.push_back(element);
+                    generated = elements.size();
+                    break;
+                } else {
+                    trial++;
+                }
+
+            }
+            if(trial == max_trial)
+                return; // when you cant generate new particles with less than max trials stop.
+        }
+    }
+};
+
 template<int N>
 class UniformRandomElementsGenerator : public RandomElementsGenerator<N> {
     int seed;

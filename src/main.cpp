@@ -23,11 +23,15 @@ MESH_DATA<elements::Element<N>> generate_random_particles(int rank, sim_param_t 
         std::shared_ptr<initial_condition::lj::RejectionCondition<N>> condition;
         const int MAX_TRIAL = 1000000;
         condition = std::make_shared<initial_condition::lj::RejectionCondition<N>>(
-                &(mesh.els), params.sig_lj, params.sig_lj * params.sig_lj, params.T0, 0, 0, 0,
+                &(mesh.els), params.sig_lj, (params.sig_lj * params.sig_lj), params.T0, 0, 0, 0,
                 params.simsize, params.simsize, params.simsize, &params
         );
-        initial_condition::lj::SphericalRandomElementsGenerator<N>(params.seed, MAX_TRIAL)
-                .generate_elements(mesh.els, params.npart, condition);
+        statistic::UniformSphericalDistribution<N, Real> sphere(params.simsize / 3.0, params.simsize / 2.0, params.simsize / 2.0, 2*params.simsize / 3.0);
+        std::uniform_real_distribution<Real> udist(0, 2*params.T0*params.T0);
+        initial_condition::lj::RandomElementsGen<N>(params.seed, MAX_TRIAL, condition)
+                .generate_elements(mesh.els, params.npart,
+                        [&sphere](auto& my_gen){ return sphere(my_gen); },
+                        [&udist] (auto& my_gen)->std::array<Real, N>{ return {udist(my_gen),udist(my_gen),udist(my_gen)};});
         std::cout << mesh.els.size() << " Done !" << std::endl;
     }
 
