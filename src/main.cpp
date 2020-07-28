@@ -102,7 +102,9 @@ int main(int argc, char** argv) {
     ////////////////////////////////////////START PARITCLE INITIALIZATION///////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    const MESH_DATA<elements::Element<N>> particles = generate_random_particles<N>(rank, params);
+    MESH_DATA<elements::Element<N>> particles = generate_random_particles<N>(rank, params);
+    Zoltan_Do_LB<N>(&particles, zz);
+
     auto datatype = elements::register_datatype<N>();
     // Data getter function (position and velocity) *required*
     auto getPositionPtrFunc = [](auto* e) -> std::array<Real, N>* { return &e->position; };
