@@ -19,7 +19,7 @@ Zoltan_Struct* zoltan_create_wrapper(MPI_Comm comm) {
     Zoltan_Set_Param(zz, "RCB_OUTPUT_LEVEL", "0");
     Zoltan_Set_Param(zz, "KEEP_CUTS", "1");
 
-    Zoltan_Set_Param(zz, "AUTO_MIGRATE", "TRUE");
+    Zoltan_Set_Param(zz, "AUTO_MIGRATE", "FALSE");
 
     return zz;
 }
