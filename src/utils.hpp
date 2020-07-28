@@ -16,6 +16,6 @@ std::array<T, N> midpoint(const std::array<T, N>& a, const std::array<T, N>& b){
 
 template<int N>
 elements::Element<N> midpoint(const elements::Element<N>& a, const elements::Element<N>& b) {
-    return elements::Element<N>(midpoint(a.position, b.position), midpoint(a.velocity, b.velocity), 0, 0);
+    return elements::Element<N>(midpoint<N>(a.position, b.position), midpoint<N>(a.velocity, b.velocity), 0, 0);
 }
 #endif //YALBB_EXAMPLE_UTILS_HPP

@@ -13,6 +13,7 @@
 #include "initial_conditions.hpp"
 #include "zoltan_fn.hpp"
 #include "spatial_elements.hpp"
+#include "utils.hpp"
 template<int N>
 MESH_DATA<elements::Element<N>> generate_random_particles(int rank, sim_param_t params){
     MESH_DATA<elements::Element<N>> mesh;
@@ -139,12 +140,12 @@ int main(int argc, char** argv) {
         apply_resize_strategy(&lscl,   nlocal + nremote);
         CLL_init<N, elements::Element<N>>({{mesh_data->els.data(), nlocal}, {remote_el.data(), nremote}}, getPositionPtrFunc, bbox, params.rc, &head, &lscl);
 
-        CLL_foreach_interaction({{mesh_data->els.data(), nlocal}, {remote_el.data(), nremote}}, getPositionPtrFunc, bbox, params.rc, &head, &lscl,
+        CLL_foreach_interaction(mesh_data->els.data(), nlocal, remote_el.data(), getPositionPtrFunc, bbox, params.rc, &head, &lscl,
             [&interactions](const auto *r, const auto *s){
-            interactions.els.push_back(midpoint(r, s));
+            interactions.els.push_back(midpoint<N>(*r, *s));
         });
 
-        Zoltan_Do_LB<N>(interactions, zlb);
+        Zoltan_Do_LB<N>(&interactions, zlb);
     };
 
 
