@@ -15,7 +15,7 @@
 #include "spatial_elements.hpp"
 
 template<int N>
-MESH_DATA<elements::Element<N>> generate_random_particles(int rank, sim_param_t params){
+MESH_DATA<elements::Element<N>> generate_random_particles(int rank, sim_param_t params) {
     MESH_DATA<elements::Element<N>> mesh;
 
     if (!rank) {
@@ -83,26 +83,51 @@ int main(int argc, char** argv) {
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     const MESH_DATA<elements::Element<N>> particles = generate_random_particles<N>(rank, params);
-
+    auto datatype = elements::register_datatype<N>();
+    // Data getter function (position and velocity) *required*
+    auto getPositionPtrFunc = [](auto* e) -> std::array<Real, N>* { return &e->position; };
+    auto getVelocityPtrFunc = [](auto* e) -> std::array<Real, N>* { return &e->velocity; };
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /////////////////////////////////////FINISHED PARITCLE INITIALIZATION///////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Domain-box intersection function *required*
+    // Solve interactions
     auto boxIntersectFunc   = [](auto* zlb, double x1, double y1, double z1, double x2, double y2, double z2, int* PEs, int* num_found){
         Zoltan_LB_Box_Assign(zlb, x1, y1, z1, x2, y2, z2, PEs, num_found);
     };
+
     // Point-in-domain callback *required*
+    // Solve belongings
     auto pointAssignFunc    = [](auto* zlb, const auto* e, int* PE) {
         auto pos_in_double = get_as_double_array<N>(e->position);
         Zoltan_LB_Point_Assign(zlb, &pos_in_double.front(), PE);
     };
+
     // Partitioning + migration function *required*
-    auto doLoadBalancingFunc= [](auto* zlb, MESH_DATA<elements::Element<N>>* mesh_data){
-        Zoltan_Do_LB<N>(mesh_data, zlb);
+    // Solve partitioning
+    auto doLoadBalancingFunc = [params, getPositionPtrFunc, boxIntersectFunc, datatype, APP_COMM](auto* zlb, MESH_DATA<elements::Element<N>>* mesh_data) {
+        // Get mesh from LB struct
+        // ...
+
+        // Update mesh weights using particles
+        // ...
+
+        MESH_DATA<elements::Element<N>> interactions; interactions.els.reserve(mesh_data->els.size()*1.5);
+        auto bbox      = get_bounding_box<N>(params.rc, getPositionPtrFunc, mesh_data->els);
+        auto remote_el = retrieve_ghosts<N>(zlb, mesh_data->els, bbox, boxIntersectFunc, params.rc, datatype, APP_COMM);
+        std::vector<Index> lscl, head;
+        const auto nlocal  = mesh_data->els.size(), nremote = remote_el.size();
+        apply_resize_strategy(&lscl,   nlocal + nremote);
+        CLL_init<N, elements::Element<N>>({{mesh_data->els.data(), nlocal}, {remote_el.data(), nremote}}, getPositionPtrFunc, bbox, params.rc, &head, &lscl);
+
+        CLL_foreach_interaction({{mesh_data->els.data(), nlocal}, {remote_el.data(), nremote}}, getPositionPtrFunc, bbox, params.rc, &head, &lscl,
+            [&interactions](const auto *r, const auto *s){
+            interactions.els.push_back(midpoint(r, s));
+        });
+
+        Zoltan_Do_LB<N>(interactions, zlb);
     };
-    // Data getter function (position and velocity) *required*
-    auto getPositionPtrFunc = [](auto* e) -> std::array<Real, N>* { return &e->position; };
-    auto getVelocityPtrFunc = [](auto* e) -> std::array<Real, N>* { return &e->velocity; };
+
 
     // Short range force function computation
     auto getForceFunc = [eps=params.eps_lj, sig=params.sig_lj, rc=params.rc, getPositionPtrFunc](const auto* receiver, const auto* source){
@@ -110,7 +135,7 @@ int main(int argc, char** argv) {
     };
 
     FunctionWrapper fWrapper(getPositionPtrFunc, getVelocityPtrFunc, getForceFunc, boxIntersectFunc, pointAssignFunc, doLoadBalancingFunc);
-    auto datatype = elements::register_datatype<N>();
+
     double load_balancing_cost = 0;
     double load_balancing_parallel_efficiency = 0;
 
