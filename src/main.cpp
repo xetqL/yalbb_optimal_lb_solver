@@ -102,8 +102,7 @@ int main(int argc, char** argv) {
     ////////////////////////////////////////START PARITCLE INITIALIZATION///////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    MESH_DATA<elements::Element<N>> particles = generate_random_particles<N>(rank, params);
-    Zoltan_Do_LB<N>(&particles, zz);
+
 
     auto datatype = elements::register_datatype<N>();
     // Data getter function (position and velocity) *required*
@@ -159,6 +158,10 @@ int main(int argc, char** argv) {
     };
 
     FunctionWrapper fWrapper(getPositionPtrFunc, getVelocityPtrFunc, getForceFunc, boxIntersectFunc, pointAssignFunc, doLoadBalancingFunc);
+
+    MESH_DATA<elements::Element<N>> particles = generate_random_particles<N>(rank, params);
+    Zoltan_Do_LB<N>(&particles, zz);
+    migrate_data(zz, particles.els, pointAssignFunc, datatype, APP_COMM);
 
     double load_balancing_cost = 0;
     double load_balancing_parallel_efficiency = 0;
