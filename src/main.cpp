@@ -137,7 +137,7 @@ int main(int argc, char** argv) {
         auto remote_el = retrieve_ghosts<N>(zlb, mesh_data->els, bbox, boxIntersectFunc, params.rc, datatype, APP_COMM);
         std::vector<Index> lscl, head;
         const auto nlocal  = mesh_data->els.size();
-        apply_resize_strategy(&lscl,   nlocal);
+        apply_resize_strategy(&lscl,   nlocal + remote_el.size() );
 
         try{
             CLL_init<N, elements::Element<N>>({{mesh_data->els.data(), nlocal}, {remote_el.data(), remote_el.size()}}, getPositionPtrFunc, bbox, params.rc, &head, &lscl);
