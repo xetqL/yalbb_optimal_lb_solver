@@ -1,4 +1,6 @@
 logs
+Makefile
+yalbb_lbopt
 build
 CMakeCache.txt
 cmake_install.cmake

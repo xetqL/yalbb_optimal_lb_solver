@@ -136,15 +136,15 @@ int main(int argc, char** argv) {
         MESH_DATA<elements::Element<N>> interactions;
         interactions.els.reserve(mesh_data->els.size()*1.5);
         auto bbox      = get_bounding_box<N>(params.rc, getPositionPtrFunc, mesh_data->els);
-        //auto remote_el = retrieve_ghosts<N>(zlb, mesh_data->els, bbox, boxIntersectFunc, params.rc, datatype, APP_COMM);
+        auto remote_el = retrieve_ghosts<N>(zlb, mesh_data->els, bbox, boxIntersectFunc, params.rc, datatype, APP_COMM);
         std::vector<Index> lscl, head;
         const auto nlocal  = mesh_data->els.size();
         apply_resize_strategy(&lscl,   nlocal);
 
-        CLL_init<N, elements::Element<N>>({{mesh_data->els.data(), nlocal}}, getPositionPtrFunc, bbox, params.rc, &head, &lscl);
-        std::vector<elements::Element<N>> remote_el;
+        CLL_init<N, elements::Element<N>>({{mesh_data->els.data(), nlocal}, {remote_el.data(), remote_el.size()}}, getPositionPtrFunc, bbox, params.rc, &head, &lscl);
+
         CLL_foreach_interaction(mesh_data->els.data(), nlocal, remote_el.data(), getPositionPtrFunc, bbox, params.rc, &head, &lscl,
-            [&interactions](const auto *r, const auto *s){
+            [&interactions](const auto *r, const auto *s) {
             interactions.els.push_back(midpoint<N>(*r, *s));
         });
 
