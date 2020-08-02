@@ -168,38 +168,8 @@ int main(int argc, char** argv) {
     double load_balancing_cost = 0;
     double load_balancing_parallel_efficiency = 0;
 
-    /* Experience Without 
-    {
-        if(!rank) std::cout << "SIM (NoLB Criterion): Computation is starting" << std::endl;
-        auto mesh_data = particles;
-        Probe probe(nproc);
-        PolicyExecutor menon_criterion_policy(&probe,[](Probe &probe) { return false; });
-        simulate<N>(zlb, &mesh_data, &menon_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "nolb");
-    }
-    */
-
     std::vector<int> opt_scenario;
     Probe solution_stats(nproc);
-    if(params.nb_best_path) {
-        auto zlb = Zoltan_Copy(zz);
-	    auto mesh_data = particles;
-        if(!rank) std::cout << "SIM (A* optimized): Computation is starting" << std::endl;
-        std::tie(solution_stats,opt_scenario) = simulate_shortest_path<N>(zlb, &mesh_data,  fWrapper, &params, datatype, [](Zoltan_Struct* lb){ return Zoltan_Copy(lb);}, [](Zoltan_Struct* lb){ Zoltan_Destroy(&lb);}, APP_COMM, "astar");
-        load_balancing_cost = solution_stats.compute_avg_lb_time();
-        load_balancing_parallel_efficiency = solution_stats.compute_avg_lb_parallel_efficiency();
-        /** Experience Reproduce ASTAR **/
-        {
-            auto zlb = Zoltan_Copy(zz);
-            if(!rank) std::cout << "SIM (ASTAR Criterion): Computation is starting" << std::endl;
-            auto mesh_data = particles;
-            Probe probe(nproc);
-            probe.push_load_balancing_time(load_balancing_cost);
-            PolicyExecutor menon_criterion_policy(&probe,[opt_scenario](Probe &probe) {
-                return (bool) opt_scenario.at(probe.get_current_iteration());
-            });
-            simulate<N>(zlb, &mesh_data, &menon_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "astar_mimic");
-        }
-    }
 
     /** Experience Menon **/
     {
@@ -213,55 +183,6 @@ int main(int argc, char** argv) {
             return is_new_batch && (probe.get_cumulative_imbalance_time() >= probe.compute_avg_lb_time());
         });
         simulate<N>(zlb, &mesh_data, &menon_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "menon");
-    }
-
-    /** Experience Procassini **/
-    {
-        auto zlb = Zoltan_Copy(zz);
-        auto mesh_data = particles;
-        Probe probe(nproc);
-        probe.push_load_balancing_time(load_balancing_cost);
-        probe.push_load_balancing_parallel_efficiency(load_balancing_parallel_efficiency);
-
-        if(!rank) {
-            std::cout << "SIM (Procassini Criterion): Computation is starting." << std::endl;
-            std::cout << "Average C = " << probe.compute_avg_lb_time() << std::endl;
-        }
-
-        PolicyExecutor procassini_criterion_policy(&probe,
-        [npframe = params.npframe](Probe probe) {
-                bool is_new_batch = (probe.get_current_iteration() % npframe == 0);
-                Real epsilon_c = probe.get_efficiency();
-                Real epsilon_lb= probe.compute_avg_lb_parallel_efficiency(); //estimation based on previous lb call
-                Real S         = epsilon_c / epsilon_lb;
-                Real tau_prime = probe.get_batch_time() *  S + probe.compute_avg_lb_time(); //estimation of next iteration time based on speed up + LB cost
-                Real tau       = probe.get_batch_time();
-                return is_new_batch && (tau_prime < tau);
-            });
-
-        simulate<N>(zlb, &mesh_data, &procassini_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "procassini");
-    }
-
-    /** Experience Marquez **/
-    {
-        auto zlb = Zoltan_Copy(zz);
-        auto mesh_data = particles;
-
-        if(!rank) {
-            std::cout << "SIM (Marquez Criterion): Computation is starting." << std::endl;
-        }
-
-        Probe probe(nproc);
-        PolicyExecutor marquez_criterion_policy(&probe,
-            [rank, threshold = 0.05, npframe = params.npframe](Probe probe){
-                bool is_new_batch = (probe.get_current_iteration() % npframe == 0);
-                Real tolerance      = probe.get_avg_it() * threshold;
-                Real tolerance_plus = probe.get_avg_it() + tolerance;
-                Real tolerance_minus= probe.get_avg_it() - tolerance;
-                return is_new_batch && (probe.get_min_it() < tolerance_minus || tolerance_plus < probe.get_max_it());
-            });
-
-        simulate<N>(zlb, &mesh_data, &marquez_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "marquez");
     }
 
     MPI_Finalize();

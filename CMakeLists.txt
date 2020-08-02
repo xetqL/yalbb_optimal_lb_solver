@@ -26,11 +26,32 @@ find_library(ZOLTAN_LIBRARY_PATH NAMES zoltan HINTS ${ZOLTAN_INSTALL_FOLDER}/lib
 find_path(ZOLTAN_INCLUDE_DIRECTORY NAMES zoltan.h HINTS ${ZOLTAN_INSTALL_FOLDER}/include)
 # Build
 set(BINARY_NAME "yalbb_lbopt")
-set(BINARY_NAME_TEST "test")
+set(BIN_ASTAR   "yalbb_astar")
+set(BIN_MENON   "yalbb_menon")
+set(BIN_PROCA   "yalbb_proca")
+set(BIN_MARQU   "yalbb_marqu")
+
+set(BINARY_NAME_TEST "yalbb_otest")
 
 add_executable(${BINARY_NAME} src/main.cpp ${SRC} ${HEADERS})
 target_include_directories(${BINARY_NAME} PRIVATE ${MPI_C_INCLUDE_PATH} ${YALBB_INCLUDE_DIRECTORY} ${ZOLTAN_INCLUDE_DIRECTORY})
 target_link_libraries(${BINARY_NAME} PRIVATE ${MPI_C_LIBRARY} ${ZOLTAN_LIBRARY_PATH}  ${YALBB_LIBRARY_PATH} stdc++fs ${ZOLTAN_LIBRARY_PATH} ${CMAKE_THREAD_LIBS_INIT})
+
+add_executable(${BIN_ASTAR} src/main_astar.cpp ${SRC} ${HEADERS})
+target_include_directories(${BIN_ASTAR} PRIVATE ${MPI_C_INCLUDE_PATH} ${YALBB_INCLUDE_DIRECTORY} ${ZOLTAN_INCLUDE_DIRECTORY})
+target_link_libraries(${BIN_ASTAR} PRIVATE ${MPI_C_LIBRARY} ${ZOLTAN_LIBRARY_PATH}  ${YALBB_LIBRARY_PATH} stdc++fs ${ZOLTAN_LIBRARY_PATH} ${CMAKE_THREAD_LIBS_INIT})
+
+add_executable(${BIN_MENON} src/main_menon.cpp ${SRC} ${HEADERS})
+target_include_directories(${BIN_MENON} PRIVATE ${MPI_C_INCLUDE_PATH} ${YALBB_INCLUDE_DIRECTORY} ${ZOLTAN_INCLUDE_DIRECTORY})
+target_link_libraries(${BIN_MENON} PRIVATE ${MPI_C_LIBRARY} ${ZOLTAN_LIBRARY_PATH}  ${YALBB_LIBRARY_PATH} stdc++fs ${ZOLTAN_LIBRARY_PATH} ${CMAKE_THREAD_LIBS_INIT})
+
+add_executable(${BIN_PROCA} src/main_procassini.cpp ${SRC} ${HEADERS})
+target_include_directories(${BIN_PROCA} PRIVATE ${MPI_C_INCLUDE_PATH} ${YALBB_INCLUDE_DIRECTORY} ${ZOLTAN_INCLUDE_DIRECTORY})
+target_link_libraries(${BIN_PROCA} PRIVATE ${MPI_C_LIBRARY} ${ZOLTAN_LIBRARY_PATH}  ${YALBB_LIBRARY_PATH} stdc++fs ${ZOLTAN_LIBRARY_PATH} ${CMAKE_THREAD_LIBS_INIT})
+
+add_executable(${BIN_MARQU} src/main_marquez.cpp ${SRC} ${HEADERS})
+target_include_directories(${BIN_MARQU} PRIVATE ${MPI_C_INCLUDE_PATH} ${YALBB_INCLUDE_DIRECTORY} ${ZOLTAN_INCLUDE_DIRECTORY})
+target_link_libraries(${BIN_MARQU} PRIVATE ${MPI_C_LIBRARY} ${ZOLTAN_LIBRARY_PATH}  ${YALBB_LIBRARY_PATH} stdc++fs ${ZOLTAN_LIBRARY_PATH} ${CMAKE_THREAD_LIBS_INIT})
 
 add_executable(${BINARY_NAME_TEST} src/main_test.cpp ${SRC} ${HEADERS})
 target_include_directories(${BINARY_NAME_TEST} PRIVATE ${MPI_C_INCLUDE_PATH} ${YALBB_INCLUDE_DIRECTORY} ${ZOLTAN_INCLUDE_DIRECTORY})
