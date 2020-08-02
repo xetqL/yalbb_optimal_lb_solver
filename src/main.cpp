@@ -102,8 +102,6 @@ int main(int argc, char** argv) {
     ////////////////////////////////////////START PARITCLE INITIALIZATION///////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-
-
     auto datatype = elements::register_datatype<N>();
     // Data getter function (position and velocity) *required*
     auto getPositionPtrFunc = [](auto* e) -> std::array<Real, N>* { return &e->position; };
@@ -141,7 +139,12 @@ int main(int argc, char** argv) {
         const auto nlocal  = mesh_data->els.size();
         apply_resize_strategy(&lscl,   nlocal);
 
-        CLL_init<N, elements::Element<N>>({{mesh_data->els.data(), nlocal}, {remote_el.data(), remote_el.size()}}, getPositionPtrFunc, bbox, params.rc, &head, &lscl);
+        try{
+            CLL_init<N, elements::Element<N>>({{mesh_data->els.data(), nlocal}, {remote_el.data(), remote_el.size()}}, getPositionPtrFunc, bbox, params.rc, &head, &lscl);
+        } catch (const std::out_of_range& oor) {
+            std::cout << "Out of Range error in: " << __FILE__ << ":" << __PRETTY_FUNCTION__ << oor.what() << std::endl;
+            abort();
+        }
 
         CLL_foreach_interaction(mesh_data->els.data(), nlocal, remote_el.data(), getPositionPtrFunc, bbox, params.rc, &head, &lscl,
             [&interactions](const auto *r, const auto *s) {
