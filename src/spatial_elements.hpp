@@ -303,7 +303,7 @@ namespace elements {
 
         // register particle element type
         constexpr int array_size = N;
-        constexpr auto mpi_raw_datatype = UseDoublePrecision ? MPI_DOUBLE : MPI_FLOAT;
+        auto mpi_raw_datatype = UseDoublePrecision ? MPI_DOUBLE : MPI_FLOAT;
 
         MPI_Type_contiguous(array_size, mpi_raw_datatype, &vec_datatype);
 

@@ -8,7 +8,7 @@
 #include <yalbb/parallel_utils.hpp>
 #include <yalbb/utils.hpp>
 
-#include "spatial_elements.hpp"
+#include "../src/spatial_elements.hpp"
 
 #include <cassert>
 #include <random>
@@ -139,10 +139,10 @@ void zoltan_fn_init(Zoltan_Struct* zz, MESH_DATA<elements::Element<N>>* mesh_dat
     Zoltan_Set_Obj_List_Fn(  zz, get_object_list<N>,       mesh_data);
     Zoltan_Set_Num_Geom_Fn(  zz, get_num_geometry<N>,      mesh_data);
     Zoltan_Set_Geom_Multi_Fn(zz, get_geometry_list<N>,     mesh_data);
-    Zoltan_Set_Obj_Size_Fn(zz, cpt_obj_size<N>, mesh_data);
-    Zoltan_Set_Pack_Obj_Fn(zz, pack_particles<N>, mesh_data);
-    Zoltan_Set_Unpack_Obj_Fn(zz, unpack_particles<N>, mesh_data);
-    Zoltan_Set_Post_Migrate_Fn(zz, post_migrate_particles<N>, mesh_data);
+    //Zoltan_Set_Obj_Size_Fn(zz, cpt_obj_size<N>, mesh_data);
+    //Zoltan_Set_Pack_Obj_Fn(zz, pack_particles<N>, mesh_data);
+    //Zoltan_Set_Unpack_Obj_Fn(zz, unpack_particles<N>, mesh_data);
+    //Zoltan_Set_Post_Migrate_Fn(zz, post_migrate_particles<N>, mesh_data);
 }
 
 template<int N>

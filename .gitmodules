@@ -1,3 +1,9 @@
 [submodule "yalbb"]
 	path = yalbb
 	url = https://github.com/xetqL/yalbb.git
+[submodule "parorb"]
+	path = parorb
+	url = git@github.com:xetql/parorb.git
+[submodule "parmedian"]
+	path = parmedian
+	url = git@github.com:xetql/parmedian.git

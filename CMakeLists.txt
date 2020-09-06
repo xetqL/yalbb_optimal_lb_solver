@@ -6,7 +6,7 @@ set(CMAKE_CXX_COMPILER mpic++)
 # Look for my files
 file(GLOB SRC src/*.cpp)
 list(FILTER SRC EXCLUDE REGEX ".*main.*.cpp")
-message(${SRC})
+#message(${SRC})
 file(GLOB HEADERS src/*.hpp)
 # Produce YALBB library
 execute_process(COMMAND mkdir -p build WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/yalbb)
@@ -20,6 +20,9 @@ find_package(MPI REQUIRED)
 
 find_library(YALBB_LIBRARY_PATH NAMES yalbb HINTS ${CMAKE_CURRENT_LIST_DIR}/yalbb/lib)
 find_path(YALBB_INCLUDE_DIRECTORY NAMES yalbb HINTS  ${CMAKE_CURRENT_LIST_DIR}/yalbb/includes)
+
+include_directories(${CMAKE_CURRENT_LIST_DIR}/parmedian YALBB_INCLUDE_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/parorb)
+
 # find my LB library (zoltan as an example)
 set(ZOLTAN_INSTALL_FOLDER /usr/local CACHE PATH "zoltan install folder")
 find_library(ZOLTAN_LIBRARY_PATH NAMES zoltan HINTS ${ZOLTAN_INSTALL_FOLDER}/lib)
@@ -32,7 +35,7 @@ set(BIN_PROCA   "yalbb_proca")
 set(BIN_MARQU   "yalbb_marqu")
 
 set(BINARY_NAME_TEST "yalbb_otest")
-
+include_directories(${CMAKE_CURRENT_LIST_DIR}/parorb/)
 add_executable(${BINARY_NAME} src/main.cpp ${SRC} ${HEADERS})
 target_include_directories(${BINARY_NAME} PRIVATE ${MPI_C_INCLUDE_PATH} ${YALBB_INCLUDE_DIRECTORY} ${ZOLTAN_INCLUDE_DIRECTORY})
 target_link_libraries(${BINARY_NAME} PRIVATE ${MPI_C_LIBRARY} ${ZOLTAN_LIBRARY_PATH}  ${YALBB_LIBRARY_PATH} stdc++fs ${ZOLTAN_LIBRARY_PATH} ${CMAKE_THREAD_LIBS_INIT})

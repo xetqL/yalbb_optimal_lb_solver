@@ -13,9 +13,6 @@
 
 namespace initial_condition {
 
-static std::random_device __rd;
-static std::mt19937 __gen(__rd()); //Standard mersenne_twister_engine seeded with rd()
-
 template<class Candidate>
 class RejectionCondition {
 public:

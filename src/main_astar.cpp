@@ -11,7 +11,7 @@
 #include <iomanip>
 
 #include "initial_conditions.hpp"
-#include "zoltan_fn.hpp"
+#include "../zoltan/zoltan_fn.hpp"
 #include "spatial_elements.hpp"
 #include "utils.hpp"
 template<int N>

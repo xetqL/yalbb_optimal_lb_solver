@@ -3,7 +3,7 @@
 //
 #include <yalbb/ljpotential.hpp>
 #include <iomanip>
-#include "zoltan_fn.hpp"
+#include "../zoltan/zoltan_fn.hpp"
 #include "spatial_elements.hpp"
 #include <string>
 #include <random>
