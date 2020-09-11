@@ -103,40 +103,35 @@ int main(int argc, char** argv) {
     // Data getter function (position and velocity) *required*
     auto getPositionPtrFunc = [](auto* e) -> std::array<Real, N>* { return &e->position; };
     auto getVelocityPtrFunc = [](auto* e) -> std::array<Real, N>* { return &e->velocity; };
+
+
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /////////////////////////////////////FINISHED PARITCLE INITIALIZATION///////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Domain-box intersection function *required*
     // Solve interactions
-    auto boxIntersectFunc   = [](auto* zlb, double x1, double y1, double z1, double x2, double y2, double z2, int* PEs, int* num_found){
-        //Zoltan_LB_Box_Assign(zlb, x1, y1, z1, x2, y2, z2, PEs, num_found);
+    auto boxIntersectFunc   = [radius = params.rc](orb::ORBBalancer<3>* zlb, double x1, double y1, double z1, double x2, double y2, double z2, int* PEs, int* num_found){
+        auto neighbors = zlb->get_neighbors(zlb->myRank, radius);
+        std::copy(neighbors.begin(), neighbors.end(), PEs);
+        *num_found = neighbors.size();
     };
 
     // Point-in-domain callback *required*
     // Solve belongings
     auto pointAssignFunc    = [](auto* lb, const auto* e, int* PE) {
-	    std::cout << __PRETTY_FUNCTION__ << std::endl;
         lb->lookup_domain(e->position, PE);
-        std::cout << *PE << std::endl;
     };
-    
+
     // Partitioning + migration function *required*
     // Solve partitioning
     auto doLoadBalancingFunc = [params, getPositionPtrFunc, boxIntersectFunc, datatype, APP_COMM](auto* zlb, MESH_DATA<elements::Element<N>>* mesh_data) {
-        // Get mesh from LB struct
-        // ...
-
-        // Update mesh weights using particles
-        // ...
 
         MESH_DATA<elements::Element<N>> interactions;
-
         auto bbox      = get_bounding_box<N>(params.rc, getPositionPtrFunc, mesh_data->els);
         auto remote_el = retrieve_ghosts<N>(zlb, mesh_data->els, bbox, boxIntersectFunc, params.rc, datatype, APP_COMM);
         std::vector<Index> lscl, head;
         const auto nlocal  = mesh_data->els.size();
         apply_resize_strategy(&lscl,   nlocal + remote_el.size() );
-
         try {
             CLL_init<N, elements::Element<N>>({{mesh_data->els.data(), nlocal}, {remote_el.data(), remote_el.size()}}, getPositionPtrFunc, bbox, params.rc, &head, &lscl);
         } catch (const std::out_of_range& oor) {
@@ -149,7 +144,7 @@ int main(int argc, char** argv) {
             interactions.els.push_back(midpoint<N>(*r, *s));
         });
 
-        //Zoltan_Do_LB<N>(&interactions, zlb);
+        orb::parallel_orb<N>(*zlb, interactions.els, getPositionPtrFunc);
     };
 
     // Short range force function computation
@@ -161,14 +156,7 @@ int main(int argc, char** argv) {
 
     MESH_DATA<elements::Element<N>> particles = generate_random_particles<N>(rank, params);
      
-    //Zoltan_Do_LB<N>(&particles, zz);
     orb::parallel_orb<N>(LB, particles.els, getPositionPtrFunc, do_migration<elements::Element<N>>);
-    int p;
-    LB.lookup_domain(particles.els[0].position, &p);
-
-    std::cout << "rank " << LB.partitions << std::endl;
-
-    migrate_data(&LB, particles.els, pointAssignFunc, datatype, APP_COMM);
 
     double load_balancing_cost = 0;
     double load_balancing_parallel_efficiency = 0;
@@ -206,10 +194,11 @@ int main(int argc, char** argv) {
         probe.push_load_balancing_time(load_balancing_cost);
         PolicyExecutor menon_criterion_policy(&probe,[nframes=params.nframes, npframe = params.npframe](Probe &probe) {
             bool is_new_batch = (probe.get_current_iteration() % npframe == 0);
-            return is_new_batch && (probe.get_cumulative_imbalance_time() >= probe.compute_avg_lb_time());
+            return ((1 + probe.get_current_iteration())  % 100) == 0; //is_new_batch && (probe.get_cumulative_imbalance_time() >= probe.compute_avg_lb_time());
         });
         simulate<N>(&zlb, &mesh_data, &menon_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "menon");
     }
+
 /*
 
     */
