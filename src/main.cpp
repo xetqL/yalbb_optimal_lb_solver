@@ -9,30 +9,12 @@
 #include <yalbb/probe.hpp>
 #include <yalbb/ljpotential.hpp>
 #include <iomanip>
+#include <search.h>
 
 #include "initial_conditions.hpp"
 #include "zoltan_fn.hpp"
 #include "spatial_elements.hpp"
 #include "utils.hpp"
-template<int N>
-MESH_DATA<elements::Element<N>> generate_random_particles(int rank, sim_param_t params){
-    MESH_DATA<elements::Element<N>> mesh;
-
-    if (!rank)
-    {
-        std::cout << "Generating data ..." << std::endl;
-        std::shared_ptr<initial_condition::lj::RejectionCondition<N>> condition;
-        std::mt19937 my_gen(params.seed);
-        statistic::UniformSphericalDistribution<N, Real> sphere(params.simsize / 3.0, params.simsize / 2.0, params.simsize / 2.0, 2*params.simsize / 3.0);
-        std::uniform_real_distribution<Real> udist(0, 2*params.T0*params.T0);
-        for(int i = 0;i < params.npart; ++i) {
-            mesh.els.emplace_back(sphere(my_gen), (std::array<float,3>) {udist(my_gen),udist(my_gen),udist(my_gen)}, i, i);
-        }
-        std::cout << mesh.els.size() << " Done !" << std::endl;
-    }
-
-    return mesh;
-}
 
 template<int N>
 MESH_DATA<elements::Element<N>> generate_random_particles_with_rejection(int rank, sim_param_t params) {
@@ -46,12 +28,12 @@ MESH_DATA<elements::Element<N>> generate_random_particles_with_rejection(int ran
                 &(mesh.els), params.sig_lj, (params.sig_lj * params.sig_lj), params.T0, 0, 0, 0,
                 params.simsize, params.simsize, params.simsize, &params
         );
-        statistic::UniformSphericalDistribution<N, Real> sphere(params.simsize / 3.0, params.simsize / 2.0, params.simsize / 2.0, 2*params.simsize / 3.0);
-        std::uniform_real_distribution<Real> udist(0, 2*params.T0*params.T0);
+        statistic::UniformSphericalDistribution<N, Real> sphere(params.simsize / 3.0, params.simsize / 2.0, params.simsize / 2.0, 2.0 * params.simsize / 3.0);
+        std::uniform_real_distribution<Real> udist(0, 2.0*params.T0*params.T0);
         initial_condition::lj::RandomElementsGen<N>(params.seed, MAX_TRIAL, condition)
                 .generate_elements(mesh.els, params.npart,
-                        [&sphere](auto& my_gen){ return sphere(my_gen); },
-                        [&udist] (auto& my_gen)->std::array<Real, N>{ return {udist(my_gen),udist(my_gen),udist(my_gen)};});
+                        [&sphere](auto& my_gen) -> std::array<Real, N> { return sphere(my_gen); },
+                        [&udist] (auto& my_gen) -> std::array<Real, N> { return {udist(my_gen), udist(my_gen), udist(my_gen)};});
         std::cout << mesh.els.size() << " Done !" << std::endl;
     }
 
@@ -83,6 +65,11 @@ int main(int argc, char** argv) {
 
     params.rc = 2.5f * params.sig_lj;
     params.simsize = std::ceil(params.simsize / params.rc) * params.rc;
+
+    std::array<Real, 2*N> simbox     = {0, params.simsize, 0,params.simsize, 0,params.simsize};
+    std::array<Real, N>   simlength  = {params.simsize, params.simsize, params.simsize};
+    std::array<Real, N>   box_center = {params.simsize / (Real) 2.0,params.simsize / (Real)2.0,params.simsize / (Real)2.0};
+    std::array<Real, N>   singularity = {params.simsize / (Real) 2.0,params.simsize / (Real)2.0,params.simsize / (Real)2.0};
 
     MPI_Bcast(&params.seed, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
@@ -155,13 +142,16 @@ int main(int argc, char** argv) {
     };
 
     // Short range force function computation
-    auto getForceFunc = [eps=params.eps_lj, sig=params.sig_lj, rc=params.rc, getPositionPtrFunc](const auto* receiver, const auto* source){
+    auto getForceFunc = [eps=params.eps_lj, sig=params.sig_lj, rc=params.rc, getPositionPtrFunc](const auto* receiver, const auto* source)->std::array<Real, N>{
         return lj_compute_force<N>(receiver, source, eps, sig*sig, rc, getPositionPtrFunc);
     };
 
     FunctionWrapper fWrapper(getPositionPtrFunc, getVelocityPtrFunc, getForceFunc, boxIntersectFunc, pointAssignFunc, doLoadBalancingFunc);
 
-    MESH_DATA<elements::Element<N>> particles = generate_random_particles<N>(rank, params);
+    auto particles = generate_random_particles<N>(rank, params,
+                                                  SpherePosition<N>(1.0, box_center),
+                                                   ContractSphereVelocity<N>(params.T0, box_center));
+
     Zoltan_Do_LB<N>(&particles, zz);
     migrate_data(zz, particles.els, pointAssignFunc, datatype, APP_COMM);
 

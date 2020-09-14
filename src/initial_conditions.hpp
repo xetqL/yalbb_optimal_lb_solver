@@ -581,5 +581,99 @@ class ParticleWallRandomElementsGenerator : public RandomElementsGenerator<N> {
 
 
 } // end of namespace initial_condition
+template<int N>
+struct ExpandSphereVelocity {
+    std::array<Real, N> expand_from;
+    Real temp;
+    std::uniform_real_distribution<Real> uniform;
+
+    explicit ExpandSphereVelocity(Real temp, std::array<Real, N> expand_from) :
+        temp(temp), uniform(0.0, 2.0*temp*temp), expand_from((expand_from)) {
+    }
+
+    virtual std::array<Real, N> operator()(std::mt19937 &gen, const std::array<Real, N>& pos) {
+        auto strength = uniform(gen);
+        std::array<Real, N> vec;
+        for(int i = 0; i < N; ++i) vec[i] = pos[i] - expand_from[i];
+        Real length = std::sqrt(std::accumulate(vec.begin(), vec.end(), (Real) 0.0, [](auto p, auto v){return p + v*v;}));
+        if constexpr (N==3)
+            return {
+                    ((vec[0] / length)) * strength,
+                    ((vec[1] / length)) * strength,
+                    ((vec[2] / length)) * strength
+            };
+        else
+            return { 0.0f, 0.0f };
+    }
+};
+template<int N>
+struct ContractSphereVelocity  {
+    std::array<Real, N> expand_from;
+    Real temp;
+    std::uniform_real_distribution<Real> uniform;
+    explicit ContractSphereVelocity(Real temp, std::array<Real, N> expand_from) :
+            temp(temp), uniform(0.0, 2.0*temp*temp), expand_from(std::move(expand_from)) {}
+
+    std::array<Real, N> operator()(std::mt19937 &gen, const std::array<Real, N>& pos) {
+        Real strength = uniform(gen);
+        std::array<Real, N> vec;
+        for(int i = 0; i < N; ++i) {
+            vec[i] = expand_from[i] - pos[i];
+        }
+        Real length = std::sqrt(std::accumulate(pos.begin(), pos.end(), (Real) 0.0, [](auto p, auto v){return p + v*v;}));
+        if constexpr (N==3)
+            return {
+                    ((vec[0] / length)) * strength,
+                    ((vec[1] / length)) * strength,
+                    ((vec[2] / length)) * strength
+            };
+        else
+            return { 0.0f, 0.0f };
+    }
+};
+
+template<int N> using  SpherePosition = statistic::UniformSphericalDistribution<N, Real>;
+template<int N> struct FixedPosition {
+    Real p;
+    std::array<Real, N> operator()(std::mt19937 &gen) {
+        if constexpr(N==3) return {p,p,p}; else return {p,p};
+    }
+};
+template<int N> struct CubePosition {
+    std::array<Real, 2*N> dimension;
+    std::uniform_real_distribution<Real> uniform{(Real) 0.0, (Real) 1.0};
+    explicit CubePosition(std::array<Real, 2*N> dimension) : dimension(std::move(dimension)) {}
+    std::array<Real, N> operator()(std::mt19937 &gen) {
+        if constexpr(N==3){
+            return { uniform(gen) * (dimension.at(1)-dimension.at(0)) + dimension.at(0),
+                     uniform(gen) * (dimension.at(3)-dimension.at(2)) + dimension.at(2),
+                     uniform(gen) * (dimension.at(5)-dimension.at(4)) + dimension.at(4)};
+        } else {
+            return { uniform(gen) * (dimension.at(1)-dimension.at(0)) + dimension.at(0),
+                     uniform(gen) * (dimension.at(3)-dimension.at(2)) + dimension.at(2)};
+        }
+    }
+};
+template<int N, class  PositionFunctor, class VelocityFunctor>
+MESH_DATA<elements::Element<N>> generate_random_particles(int rank, sim_param_t params, PositionFunctor rand_pos, VelocityFunctor rand_vel) {
+    MESH_DATA<elements::Element<N>> mesh;
+
+    if (!rank) {
+        std::cout << "Generating data ..." << std::endl;
+        std::mt19937 my_gen(params.seed);
+        for(int i = 0;i < params.npart; ++i) {
+            auto pos = rand_pos(my_gen);
+            /*while(std::any_of(mesh.els.begin(), mesh.els.end(), [pos, s=params.sig_lj](const auto& e){
+                return elements::distance2<N>(e.position, pos) < 6.25*s*s;
+            })) {
+                pos = rand_pos(my_gen);
+            }*/
+            mesh.els.emplace_back(pos, rand_vel(my_gen, pos), i, i);
+        }
+        std::cout << mesh.els.size() << " Done !" << std::endl;
+    }
+
+    return mesh;
+}
 
 #endif //NBMPI_INITIAL_CONDITIONS_HPP

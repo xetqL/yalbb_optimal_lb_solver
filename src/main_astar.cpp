@@ -14,25 +14,6 @@
 #include "zoltan_fn.hpp"
 #include "spatial_elements.hpp"
 #include "utils.hpp"
-template<int N>
-MESH_DATA<elements::Element<N>> generate_random_particles(int rank, sim_param_t params){
-    MESH_DATA<elements::Element<N>> mesh;
-
-    if (!rank)
-    {
-        std::cout << "Generating data ..." << std::endl;
-        std::shared_ptr<initial_condition::lj::RejectionCondition<N>> condition;
-        std::mt19937 my_gen(params.seed);
-        statistic::UniformSphericalDistribution<N, Real> sphere(params.simsize / 3.0, params.simsize / 2.0, params.simsize / 2.0, 2*params.simsize / 3.0);
-        std::uniform_real_distribution<Real> udist(0, 2*params.T0*params.T0);
-        for(int i = 0;i < params.npart; ++i) {
-            mesh.els.emplace_back(sphere(my_gen), (std::array<float,3>) {udist(my_gen),udist(my_gen),udist(my_gen)}, i, i);
-        }
-        std::cout << mesh.els.size() << " Done !" << std::endl;
-    }
-
-    return mesh;
-}
 
 template<int N>
 MESH_DATA<elements::Element<N>> generate_random_particles_with_rejection(int rank, sim_param_t params) {
