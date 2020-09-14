@@ -620,7 +620,7 @@ struct ContractSphereVelocity  {
         for(int i = 0; i < N; ++i) {
             vec[i] = expand_from[i] - pos[i];
         }
-        Real length = std::sqrt(std::accumulate(pos.begin(), pos.end(), (Real) 0.0, [](auto p, auto v){return p + v*v;}));
+        Real length = std::sqrt(std::accumulate(vec.begin(), vec.end(), (Real) 0.0, [](auto p, auto v){return p + v*v;}));
         if constexpr (N==3)
             return {
                     ((vec[0] / length)) * strength,
@@ -632,7 +632,9 @@ struct ContractSphereVelocity  {
     }
 };
 
-template<int N> using  SpherePosition = statistic::UniformSphericalDistribution<N, Real>;
+template<int N> using  SpherePosition       = statistic::UniformSphericalDistribution<N, Real>;
+template<int N> using  OnSphereEdgePosition = statistic::UniformOnSphereEdgeDistribution<N, Real>;
+
 template<int N> struct FixedPosition {
     Real p;
     std::array<Real, N> operator()(std::mt19937 &gen) {

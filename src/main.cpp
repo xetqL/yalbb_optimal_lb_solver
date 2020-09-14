@@ -149,7 +149,7 @@ int main(int argc, char** argv) {
     FunctionWrapper fWrapper(getPositionPtrFunc, getVelocityPtrFunc, getForceFunc, boxIntersectFunc, pointAssignFunc, doLoadBalancingFunc);
 
     auto particles = generate_random_particles<N>(rank, params,
-                                                  SpherePosition<N>(1.0, box_center),
+                                                  OnSphereEdgePosition<N>(1.0, box_center),
                                                    ContractSphereVelocity<N>(params.T0, box_center));
 
     Zoltan_Do_LB<N>(&particles, zz);
