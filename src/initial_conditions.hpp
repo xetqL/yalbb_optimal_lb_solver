@@ -634,11 +634,21 @@ struct ContractSphereVelocity  {
 
 template<int N> using  SpherePosition       = statistic::UniformSphericalDistribution<N, Real>;
 template<int N> using  OnSphereEdgePosition = statistic::UniformOnSphereEdgeDistribution<N, Real>;
+template<int N> struct LoadPositionsFromFile {
+    std::ifstream infile;
+    std::string   header;
+    LoadPositionsFromFile(std::string fname) : infile(fname) {
+        std::getline(infile, header);
+    }
 
+    std::array<Real, N> operator()(std::mt19937 &gen) {
+        return io::load_one<N>(infile);
+    }
+};
 template<int N> struct FixedPosition {
     Real p;
     std::array<Real, N> operator()(std::mt19937 &gen) {
-        if constexpr(N==3) return {p,p,p}; else return {p,p};
+        if constexpr(N==3) return {p,p,p}; else return {p, p};
     }
 };
 template<int N> struct CubePosition {
@@ -659,17 +669,11 @@ template<int N> struct CubePosition {
 template<int N, class  PositionFunctor, class VelocityFunctor>
 MESH_DATA<elements::Element<N>> generate_random_particles(int rank, sim_param_t params, PositionFunctor rand_pos, VelocityFunctor rand_vel) {
     MESH_DATA<elements::Element<N>> mesh;
-
     if (!rank) {
         std::cout << "Generating data ..." << std::endl;
         std::mt19937 my_gen(params.seed);
         for(int i = 0;i < params.npart; ++i) {
             auto pos = rand_pos(my_gen);
-            /*while(std::any_of(mesh.els.begin(), mesh.els.end(), [pos, s=params.sig_lj](const auto& e){
-                return elements::distance2<N>(e.position, pos) < 6.25*s*s;
-            })) {
-                pos = rand_pos(my_gen);
-            }*/
             mesh.els.emplace_back(pos, rand_vel(my_gen, pos), i, i);
         }
         std::cout << mesh.els.size() << " Done !" << std::endl;

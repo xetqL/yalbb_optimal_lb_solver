@@ -149,7 +149,7 @@ int main(int argc, char** argv) {
     FunctionWrapper fWrapper(getPositionPtrFunc, getVelocityPtrFunc, getForceFunc, boxIntersectFunc, pointAssignFunc, doLoadBalancingFunc);
 
     auto particles = generate_random_particles<N>(rank, params,
-                                                  OnSphereEdgePosition<N>(1.0, box_center),
+                                                  LoadPositionsFromFile<N>(params.fname),
                                                    ContractSphereVelocity<N>(params.T0, box_center));
 
     Zoltan_Do_LB<N>(&particles, zz);
@@ -198,7 +198,7 @@ int main(int argc, char** argv) {
         auto mesh_data = particles;
         Probe probe(nproc);
         probe.push_load_balancing_time(load_balancing_cost);
-        PolicyExecutor menon_criterion_policy(&probe,[nframes=params.nframes, npframe = params.npframe](Probe &probe) {
+        PolicyExecutor menon_criterion_policy(&probe, [nframes=params.nframes, npframe = params.npframe](Probe &probe) {
             bool is_new_batch = (probe.get_current_iteration() % npframe == 0);
             return is_new_batch && (probe.get_cumulative_imbalance_time() >= probe.compute_avg_lb_time());
         });
