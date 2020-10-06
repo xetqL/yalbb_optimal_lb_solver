@@ -15,7 +15,7 @@
 #include "zoltan_fn.hpp"
 #include "spatial_elements.hpp"
 #include "utils.hpp"
-
+#include <chrono>
 template<int N>
 MESH_DATA<elements::Element<N>> generate_random_particles_with_rejection(int rank, sim_param_t params) {
     MESH_DATA<elements::Element<N>> mesh;
@@ -42,16 +42,16 @@ MESH_DATA<elements::Element<N>> generate_random_particles_with_rejection(int ran
 
 int main(int argc, char** argv) {
     constexpr int N = 3;
-    int rank, nproc;
+    int _rank, _nproc;
     float ver;
 
     std::cout << std::fixed << std::setprecision(6);
 
     // Initialize the MPI environment
     MPI_Init(&argc, &argv);
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &nproc);
-
+    MPI_Comm_rank(MPI_COMM_WORLD, &_rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &_nproc);
+    const int rank = _rank, nproc = _nproc;
     MPI_Comm APP_COMM;
     MPI_Comm_dup(MPI_COMM_WORLD, &APP_COMM);
 
@@ -83,7 +83,6 @@ int main(int argc, char** argv) {
         exit(EXIT_FAILURE);
     }
 
-    auto zz = zoltan_create_wrapper(APP_COMM);
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////////////START PARITCLE INITIALIZATION///////////////////////////////////////////////
@@ -111,34 +110,37 @@ int main(int argc, char** argv) {
 
     // Partitioning + migration function *required*
     // Solve partitioning
-    auto doLoadBalancingFunc = [params, getPositionPtrFunc, boxIntersectFunc, datatype, APP_COMM](auto* zlb, MESH_DATA<elements::Element<N>>* mesh_data) {
+    auto doLoadBalancingFunc = [rc = params.rc, getPositionPtrFunc, boxIntersectFunc, datatype, APP_COMM](auto* zlb, MESH_DATA<elements::Element<N>>* mesh_data) {
         // Get mesh from LB struct
         // ...
 
         // Update mesh weights using particles
         // ...
-
-        MESH_DATA<elements::Element<N>> interactions;
-        interactions.els.reserve(mesh_data->els.size()*1.5);
-        auto bbox      = get_bounding_box<N>(params.rc, getPositionPtrFunc, mesh_data->els);
-        auto remote_el = retrieve_ghosts<N>(zlb, mesh_data->els, bbox, boxIntersectFunc, params.rc, datatype, APP_COMM);
+        std::vector<elements::Element<N>> sampled;
+	
+	float sampling_size = 30.f;
+		//std::sample(mesh_data->els.begin(), mesh_data->els.end(), std::back_inserter(sampled), (unsigned int) (mesh_data->els.size() * sampling_size) , std::mt19937{std::random_device{}()});
+	for(int i = 0; i < 5; ++i) 
+		std::copy(mesh_data->els.begin(), mesh_data->els.end(), std::back_inserter(sampled));
+        
+	MESH_DATA<elements::Element<N>> interactions;
+	        
+        auto bbox      = get_bounding_box<N>(rc, getPositionPtrFunc, sampled);
+        auto remote_el = retrieve_ghosts<N>(zlb, sampled, bbox, boxIntersectFunc, rc, datatype, APP_COMM);
         std::vector<Index> lscl, head;
-        const auto nlocal  = mesh_data->els.size();
+        const auto nlocal  = sampled.size();
         apply_resize_strategy(&lscl,   nlocal + remote_el.size() );
 
-        try{
-            CLL_init<N, elements::Element<N>>({{mesh_data->els.data(), nlocal}, {remote_el.data(), remote_el.size()}}, getPositionPtrFunc, bbox, params.rc, &head, &lscl);
-        } catch (const std::out_of_range& oor) {
-            std::cout << "Out of Range error in: " << __FILE__ << ":" << __PRETTY_FUNCTION__ << oor.what() << std::endl;
-            abort();
-        }
+        CLL_init<N, elements::Element<N>>({{sampled.data(), nlocal}, {remote_el.data(), remote_el.size()}}, getPositionPtrFunc, bbox, rc, &head, &lscl);
 
-        CLL_foreach_interaction(mesh_data->els.data(), nlocal, remote_el.data(), getPositionPtrFunc, bbox, params.rc, &head, &lscl,
+        CLL_foreach_interaction(sampled.data(), nlocal, remote_el.data(), getPositionPtrFunc, bbox, rc, &head, &lscl,
             [&interactions](const auto *r, const auto *s) {
             interactions.els.push_back(midpoint<N>(*r, *s));
-        });
+        }); 
 
-        Zoltan_Do_LB<N>(&interactions, zlb);
+//        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        
+	Zoltan_Do_LB<N>(&interactions, zlb);
     };
 
     // Short range force function computation
@@ -148,13 +150,8 @@ int main(int argc, char** argv) {
 
     FunctionWrapper fWrapper(getPositionPtrFunc, getVelocityPtrFunc, getForceFunc, boxIntersectFunc, pointAssignFunc, doLoadBalancingFunc);
 
-    auto particles = generate_random_particles<N>(rank, params,
-                                                  LoadPositionsFromFile<N>(params.fname),
-                                                   ContractSphereVelocity<N>(params.T0, box_center));
 
-    Zoltan_Do_LB<N>(&particles, zz);
-    migrate_data(zz, particles.els, pointAssignFunc, datatype, APP_COMM);
-
+//    std::cout << particles.els.size() << std::endl;
     double load_balancing_cost = 0;
     double load_balancing_parallel_efficiency = 0;
 
@@ -167,21 +164,32 @@ int main(int argc, char** argv) {
         simulate<N>(zlb, &mesh_data, &menon_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "nolb");
     }
     */
-
     std::vector<int> opt_scenario;
     Probe solution_stats(nproc);
     if(params.nb_best_path) {
-        auto zlb = Zoltan_Copy(zz);
-	    auto mesh_data = particles;
+        auto zlb = zoltan_create_wrapper(APP_COMM);
+        auto mesh_data = generate_random_particles<N>(rank, params,
+                                                   SpherePosition<N>(params.simsize / 2.0, box_center),
+                                                   ContractSphereVelocity<N>(params.T0, box_center));
+        Zoltan_Do_LB<N>(&mesh_data, zlb);
+        migrate_data(zlb, mesh_data.els, pointAssignFunc, datatype, APP_COMM);
+
         if(!rank) std::cout << "SIM (A* optimized): Computation is starting" << std::endl;
         std::tie(solution_stats,opt_scenario) = simulate_shortest_path<N>(zlb, &mesh_data,  fWrapper, &params, datatype, [](Zoltan_Struct* lb){ return Zoltan_Copy(lb);}, [](Zoltan_Struct* lb){ Zoltan_Destroy(&lb);}, APP_COMM, "astar");
         load_balancing_cost = solution_stats.compute_avg_lb_time();
         load_balancing_parallel_efficiency = solution_stats.compute_avg_lb_parallel_efficiency();
         /** Experience Reproduce ASTAR **/
         {
-            auto zlb = Zoltan_Copy(zz);
+            auto zlb = zoltan_create_wrapper(APP_COMM);
+            auto mesh_data = generate_random_particles<N>(rank, params,
+                                                   SpherePosition<N>(params.simsize / 2.0, box_center),
+                                                   ContractSphereVelocity<N>(params.T0, box_center));
+
+            Zoltan_Do_LB<N>(&mesh_data, zlb);
+            migrate_data(zlb, mesh_data.els, pointAssignFunc, datatype, APP_COMM);
+            //auto zlb = Zoltan_Copy(zz);
             if(!rank) std::cout << "SIM (ASTAR Criterion): Computation is starting" << std::endl;
-            auto mesh_data = particles;
+            //auto mesh_data = particles;
             Probe probe(nproc);
             probe.push_load_balancing_time(load_balancing_cost);
             PolicyExecutor menon_criterion_policy(&probe,[opt_scenario](Probe &probe) {
@@ -191,25 +199,74 @@ int main(int argc, char** argv) {
         }
     }
 
+    if(true){//burn cpu cycle
+ 	
+        MPI_Comm APP_COMM;
+        MPI_Comm_dup(MPI_COMM_WORLD, &APP_COMM);
+
+        auto burn_params = option.value();
+	burn_params.npart  = params.npart * 0.1f;
+	burn_params.nframes= 1;
+	burn_params.npframe= 1000;
+        
+	auto zlb = zoltan_create_wrapper(APP_COMM);
+        auto mesh_data = generate_random_particles<N>(rank, burn_params,
+                                                   SpherePosition<N>(params.simsize / 2.0, box_center),
+                                                   ContractSphereVelocity<N>(params.T0, box_center));
+        Zoltan_Do_LB<N>(&mesh_data, zlb);
+        migrate_data(zlb, mesh_data.els, pointAssignFunc, datatype, APP_COMM);
+        if(!rank) std::cout << "Burn CPU cycles: Computation is starting" << std::endl;
+        Probe probe(nproc);
+	PolicyExecutor menon_criterion_policy(&probe, [](Probe &probe) {
+            return false;
+        });
+        simulate<N>(zlb, &mesh_data, &menon_criterion_policy, fWrapper, &burn_params, &probe, datatype, APP_COMM, "burn");
+        Zoltan_Destroy(&zlb);
+    }
+
+
     /** Experience Menon **/
     {
-        auto zlb = Zoltan_Copy(zz);
-        if(!rank) std::cout << "SIM (Menon Criterion): Computation is starting" << std::endl;
-        auto mesh_data = particles;
+        auto zlb = zoltan_create_wrapper(APP_COMM);
+        auto mesh_data = generate_random_particles<N>(rank, params,
+                                                   SpherePosition<N>(params.simsize / 2.0, box_center),
+                                                   ContractSphereVelocity<N>(params.T0, box_center));
+
+	PAR_START_TIMER(lbtime, APP_COMM);
+        Zoltan_Do_LB<N>(&mesh_data, zlb);
+        migrate_data(zlb, mesh_data.els, pointAssignFunc, datatype, APP_COMM);
+	END_TIMER(lbtime);
+        MPI_Allreduce(MPI_IN_PLACE, &lbtime, 1, MPI_TIME, MPI_MAX, APP_COMM);
+
+        if(!rank) {
+	   std::cout << rank << " SIM (Menon Criterion): Computation is starting" << std::endl;
+	}
+
         Probe probe(nproc);
-        probe.push_load_balancing_time(load_balancing_cost);
+        probe.push_load_balancing_time(lbtime / 2.0);
         PolicyExecutor menon_criterion_policy(&probe, [nframes=params.nframes, npframe = params.npframe](Probe &probe) {
             bool is_new_batch = (probe.get_current_iteration() % npframe == 0);
-            return is_new_batch && (probe.get_cumulative_imbalance_time() >= probe.compute_avg_lb_time());
+
+            return (probe.get_cumulative_imbalance_time() >= probe.compute_avg_lb_time());
         });
         simulate<N>(zlb, &mesh_data, &menon_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "menon");
+        Zoltan_Destroy(&zlb);
     }
 
     /** Experience Procassini **/
     {
-        auto zlb = Zoltan_Copy(zz);
-        auto mesh_data = particles;
-        Probe probe(nproc);
+        auto zlb = zoltan_create_wrapper(APP_COMM);
+        auto mesh_data = generate_random_particles<N>(rank, params,
+                                                   SpherePosition<N>(params.simsize / 2.0, box_center),
+                                                   ContractSphereVelocity<N>(params.T0, box_center));
+
+	PAR_START_TIMER(lbtime, APP_COMM);
+        Zoltan_Do_LB<N>(&mesh_data, zlb);
+        migrate_data(zlb, mesh_data.els, pointAssignFunc, datatype, APP_COMM);
+	END_TIMER(lbtime);
+        MPI_Allreduce(MPI_IN_PLACE, &lbtime, 1, MPI_TIME, MPI_MAX, APP_COMM);
+        
+	Probe probe(nproc);
         probe.push_load_balancing_time(load_balancing_cost);
         probe.push_load_balancing_parallel_efficiency(load_balancing_parallel_efficiency);
 
@@ -226,16 +283,23 @@ int main(int argc, char** argv) {
                 Real S         = epsilon_c / epsilon_lb;
                 Real tau_prime = probe.get_batch_time() *  S + probe.compute_avg_lb_time(); //estimation of next iteration time based on speed up + LB cost
                 Real tau       = probe.get_batch_time();
-                return is_new_batch && (tau_prime < tau);
+                return (tau_prime < tau);
             });
 
         simulate<N>(zlb, &mesh_data, &procassini_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "procassini");
     }
 
-    /** Experience Marquez **/
-    {
-        auto zlb = Zoltan_Copy(zz);
-        auto mesh_data = particles;
+    /** Experience true **/
+    if(false) {
+        //auto zlb = Zoltan_Copy(zz);
+        //auto mesh_data = particles;
+        auto zlb = zoltan_create_wrapper(APP_COMM);
+        auto mesh_data = generate_random_particles<N>(rank, params,
+                                                   SpherePosition<N>(params.simsize / 2.0, box_center),
+                                                   ContractSphereVelocity<N>(params.T0, box_center));
+
+        Zoltan_Do_LB<N>(&mesh_data, zlb);
+        migrate_data(zlb, mesh_data.els, pointAssignFunc, datatype, APP_COMM);
 
         if(!rank) {
             std::cout << "SIM (Marquez Criterion): Computation is starting." << std::endl;
@@ -243,15 +307,43 @@ int main(int argc, char** argv) {
 
         Probe probe(nproc);
         PolicyExecutor marquez_criterion_policy(&probe,
-            [rank, threshold = 0.05, npframe = params.npframe](Probe probe){
+            [rank, threshold = 0.5, npframe = params.npframe](Probe probe){
                 bool is_new_batch = (probe.get_current_iteration() % npframe == 0);
                 Real tolerance      = probe.get_avg_it() * threshold;
                 Real tolerance_plus = probe.get_avg_it() + tolerance;
                 Real tolerance_minus= probe.get_avg_it() - tolerance;
-                return is_new_batch && (probe.get_min_it() < tolerance_minus || tolerance_plus < probe.get_max_it());
+                return true; //(probe.get_min_it() < tolerance_minus || tolerance_plus < probe.get_max_it());
             });
 
-        simulate<N>(zlb, &mesh_data, &marquez_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "marquez");
+        simulate<N>(zlb, &mesh_data, &marquez_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "true");
+    }
+    /** Experience false **/
+    if(false) {
+        //auto zlb = Zoltan_Copy(zz);
+        //auto mesh_data = particles;
+        auto zlb = zoltan_create_wrapper(APP_COMM);
+        auto mesh_data = generate_random_particles<N>(rank, params,
+                                                   SpherePosition<N>(params.simsize / 2.0, box_center),
+                                                   ContractSphereVelocity<N>(params.T0, box_center));
+
+        Zoltan_Do_LB<N>(&mesh_data, zlb);
+        migrate_data(zlb, mesh_data.els, pointAssignFunc, datatype, APP_COMM);
+
+        if(!rank) {
+            std::cout << "SIM (Marquez Criterion): Computation is starting." << std::endl;
+        }
+
+        Probe probe(nproc);
+        PolicyExecutor marquez_criterion_policy(&probe,
+            [rank, threshold = 0.5, npframe = params.npframe](Probe probe){
+                bool is_new_batch = (probe.get_current_iteration() % npframe == 0);
+                Real tolerance      = probe.get_avg_it() * threshold;
+                Real tolerance_plus = probe.get_avg_it() + tolerance;
+                Real tolerance_minus= probe.get_avg_it() - tolerance;
+                return false; //(probe.get_min_it() < tolerance_minus || tolerance_plus < probe.get_max_it());
+            });
+
+        simulate<N>(zlb, &mesh_data, &marquez_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "false");
     }
 
     MPI_Finalize();
