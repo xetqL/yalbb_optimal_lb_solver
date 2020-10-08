@@ -5,8 +5,9 @@
 #ifndef YALBB_EXAMPLE_STRIPELB_HPP
 #define YALBB_EXAMPLE_STRIPELB_HPP
 
-#include <yalbb/parallel_utils.hpp>
+//#include <yalbb/parallel_utils.hpp>
 #include <yalbb/utils.hpp>
+#include "parallel/algorithm.hpp"
 
 #include <mpi.h>
 #include <array>
@@ -24,7 +25,6 @@ class StripeLB {
         const auto&[beg_b, end_b] = b;
         return std::min( std::abs(beg_a - end_b), std::abs(beg_b - end_a) );
     }
-
     inline bool is_inside(Real v, const Stripe& a) const {
         const auto&[beg_a, end_a] = a;
         return beg_a <= v && v < end_a;
@@ -41,28 +41,18 @@ public:
         stripes = std::vector<Stripe>(world_size);
     }
 
-    template<class GetWeightFunc, class GetPositionFunc>
-    void balance(std::vector<T>& elements, GetWeightFunc getWeight, GetPositionFunc getPosition) {
-        const auto n_elements = elements.size();
-              auto t_elements = n_elements;
-        std::vector<Real> buffer(2*n_elements);
-        for(size_t i = 0; i < n_elements; ++i){
-            buffer[2*i  ] = getPosition(&elements[i])[cutDim];
-            buffer[2*i+1] = getWeight(i);
+    template<class GetPositionFunc>
+    void partition(std::vector<T>& elements, GetPositionFunc getPosition) {
+        Real prev = 0.0, next;
+        Real n = elements.size(), total_n;
+        MPI_Allreduce(&n, &total_n, 1, par::get_mpi_type<Real>(), MPI_SUM, comm);
+        size_t avg_n = total_n / world_size;
+        for(int pe = 0; pe < world_size; ++pe) {
+            next = getPosition(&par::find_nth(elements.begin(), elements.end(), pe * avg_n, [getPosition](auto& v){return getPosition(&v).at(cutDim);})).at(cutDim);
+            stripes.at(pe) = {prev, next};
+            prev = next;
         }
-        std::vector<int> displs(world_size), count(world_size);
-        MPI_Gather(&t_elements, 1, MPI_INT, count.data(), 1, MPI_INT, 0, comm);
-        std::exclusive_scan(count.begin(), count.end(), displs.begin(), 0);
-
-        MPI_Gather(buffer.data(), 2*n_elements, get_mpi_type<Real>(), );
-
-
-        Real my_total_weight = std::for_each(elements.begin(), elements.end(), (Real) 0.0, getWeight);
-        Real total_weight = (Real) 0.0;
-        MPI_Reduce(&my_total_weight, &total_weight, 1, get_mpi_type<Real>(), MPI_SUM, 0, comm);
-        // std::partition()
     }
-
     void lookup_domain(const std::array<Real, N>& point, int* PE) const {
         for(*PE = 0; !is_inside(point.at(cutDim), stripes.at(*PE)); (*PE)++);
     }
