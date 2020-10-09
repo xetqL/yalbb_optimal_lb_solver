@@ -651,6 +651,12 @@ template<int N> struct FixedPosition {
         if constexpr(N==3) return {p,p,p}; else return {p, p};
     }
 };
+template<int N> struct FixedVelocity {
+    Real p;
+    std::array<Real, N> operator()(std::mt19937 &gen, const std::array<Real, N>& pos) {
+        if constexpr(N==3) return {p,p,p}; else return {p, p};
+    }
+};
 template<int N> struct CubePosition {
     std::array<Real, 2*N> dimension;
     std::uniform_real_distribution<Real> uniform{(Real) 0.0, (Real) 1.0};

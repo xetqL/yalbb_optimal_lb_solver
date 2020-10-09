@@ -5,53 +5,20 @@
 #include <yalbb/simulator.hpp>
 #include <yalbb/shortest_path.hpp>
 #include <yalbb/node.hpp>
-
 #include <yalbb/probe.hpp>
 #include <yalbb/ljpotential.hpp>
+
 #include <iomanip>
-#include <search.h>
 
 #include "initial_conditions.hpp"
-#include "zoltan_fn.hpp"
 #include "spatial_elements.hpp"
 #include "utils.hpp"
 #include "StripeLB.hpp"
-#include <chrono>
-template<int N>
-MESH_DATA<elements::Element<N>> generate_random_particles_with_rejection(int rank, sim_param_t params) {
-    MESH_DATA<elements::Element<N>> mesh;
+#include "experience.hpp"
 
-    if (!rank) {
-        std::cout << "Generating data ..." << std::endl;
-        std::shared_ptr<initial_condition::lj::RejectionCondition<N>> condition;
-        const int MAX_TRIAL = 1000000;
-        condition = std::make_shared<initial_condition::lj::RejectionCondition<N>>(
-                &(mesh.els), params.sig_lj, (params.sig_lj * params.sig_lj), params.T0, 0, 0, 0,
-                params.simsize, params.simsize, params.simsize, &params
-        );
-        statistic::UniformSphericalDistribution<N, Real> sphere(params.simsize / 3.0, params.simsize / 2.0, params.simsize / 2.0, 2.0 * params.simsize / 3.0);
-        std::uniform_real_distribution<Real> udist(0, 2.0*params.T0*params.T0);
-        initial_condition::lj::RandomElementsGen<N>(params.seed, MAX_TRIAL, condition)
-                .generate_elements(mesh.els, params.npart,
-                        [&sphere](auto& my_gen) -> std::array<Real, N> { return sphere(my_gen); },
-                        [&udist] (auto& my_gen) -> std::array<Real, N> { return {udist(my_gen), udist(my_gen), udist(my_gen)};});
-        std::cout << mesh.els.size() << " Done !" << std::endl;
-    }
-
-    return mesh;
-}
-template<class T, int N, int C>
-StripeLB<T,N,C>* allocate_from(StripeLB<T,N,C>* t) {
-    auto* ptr = new StripeLB<T,N,C>(t->comm);
-    std::copy(t->stripes.begin(), t->stripes.end(), ptr->stripes.begin());
-    ptr->rank = t->rank;
-    ptr->world_size = t->world_size;
-    return ptr;
-}
 int main(int argc, char** argv) {
     constexpr int N = 3;
     int _rank, _nproc;
-    float ver;
 
     std::cout << std::fixed << std::setprecision(6);
 
@@ -59,7 +26,7 @@ int main(int argc, char** argv) {
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &_nproc);
-    const int rank = _rank, nproc = _nproc;
+    const int rank = _rank,nproc = _nproc;
     MPI_Comm APP_COMM;
     MPI_Comm_dup(MPI_COMM_WORLD, &APP_COMM);
 
@@ -68,15 +35,14 @@ int main(int argc, char** argv) {
         MPI_Finalize();
         exit(EXIT_FAILURE);
     }
-
     auto params = option.value();
 
     params.rc = 2.5f * params.sig_lj;
     params.simsize = std::ceil(params.simsize / params.rc) * params.rc;
 
-    std::array<Real, 2*N> simbox     = {0, params.simsize, 0,params.simsize, 0,params.simsize};
-    std::array<Real, N>   simlength  = {params.simsize, params.simsize, params.simsize};
-    std::array<Real, N>   box_center = {params.simsize / (Real) 2.0,params.simsize / (Real)2.0,params.simsize / (Real)2.0};
+    std::array<Real, 2*N> simbox      = {0, params.simsize, 0,params.simsize, 0,params.simsize};
+    std::array<Real, N>   simlength   = {params.simsize, params.simsize, params.simsize};
+    std::array<Real, N>   box_center  = {params.simsize / (Real) 2.0,params.simsize / (Real)2.0,params.simsize / (Real)2.0};
     std::array<Real, N>   singularity = {params.simsize / (Real) 2.0,params.simsize / (Real)2.0,params.simsize / (Real)2.0};
 
     MPI_Bcast(&params.seed, 1, MPI_INT, 0, MPI_COMM_WORLD);
@@ -85,12 +51,6 @@ int main(int argc, char** argv) {
         print_params(params);
         std::cout << "Computating with " << nproc << " PEs"<<std::endl;
     }
-
-//    if(Zoltan_Initialize(argc, argv, &ver) != ZOLTAN_OK) {
-//        MPI_Finalize();
-//        exit(EXIT_FAILURE);
-//    }
-
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////////////START PARITCLE INITIALIZATION///////////////////////////////////////////////
@@ -146,7 +106,6 @@ int main(int argc, char** argv) {
         }); 
 
         zlb->partition(mesh_data->els, getPositionPtrFunc);
-	    //Zoltan_Do_LB<N>(&interactions, zlb);
     };
 
     // Short range force function computation
@@ -162,73 +121,41 @@ int main(int argc, char** argv) {
     std::vector<int> opt_scenario;
     Probe solution_stats(nproc);
     if(params.nb_best_path) {
-        //auto zlb = zoltan_create_wrapper(APP_COMM);
-        auto* zlb =  new StripeLB<elements::Element<N>, N, 2>(APP_COMM);
-        auto mesh_data = generate_random_particles<N>(rank, params,
-                                                   SpherePosition<N>(params.simsize / 2.0, box_center),
-                                                   ContractSphereVelocity<N>(params.T0, box_center));
-        //Zoltan_Do_LB<N>(&mesh_data, zlb);
-        zlb->partition(mesh_data.els, getPositionPtrFunc);
-        migrate_data(zlb, mesh_data.els, pointAssignFunc, datatype, APP_COMM);
+        auto[zlb, mesh_data, probe, lbtime] = init_exp_uniform_cube_fixed_stripe_LB< N>(simbox, params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, "(A* optimized): ");
+        std::tie(solution_stats,opt_scenario) =
+                simulate_shortest_path<N>(zlb, &mesh_data,  fWrapper, &params, datatype,
+                    [](auto* lb){
+                        auto* ptr = new StripeLB<elements::Element<N>,N,2>(lb->comm);
+                        std::copy(lb->stripes.begin(), lb->stripes.end(), ptr->stripes.begin());
+                        return ptr;},
+                    [](auto* lb){ destroy(lb);}, APP_COMM, "astar");
 
-        if(!rank) std::cout << "SIM (A* optimized): Computation is starting" << std::endl;
-        std::tie(solution_stats,opt_scenario) = simulate_shortest_path<N>(zlb, &mesh_data,  fWrapper, &params, datatype,
-                                                                          [](auto* lb){
-                                                                              auto* ptr = new StripeLB<elements::Element<N>,N,2>(lb->comm);
-                                                                              std::copy(lb->stripes.begin(), lb->stripes.end(), ptr->stripes.begin());
-                                                                              return ptr;},
-                                                                          [](auto* lb){ destroy(lb);}, APP_COMM, "astar");
         load_balancing_cost = solution_stats.compute_avg_lb_time();
         load_balancing_parallel_efficiency = solution_stats.compute_avg_lb_parallel_efficiency();
+
         /** Experience Reproduce ASTAR **/
         destroy(zlb);
 
         {
-            //auto zlb = zoltan_create_wrapper(APP_COMM);
-            auto* zlb=new StripeLB<elements::Element<N>, N, 2>(APP_COMM);
-            auto mesh_data = generate_random_particles<N>(rank, params,
-                                                   SpherePosition<N>(params.simsize / 2.0, box_center),
-                                                   ContractSphereVelocity<N>(params.T0, box_center));
-
-            zlb->partition(mesh_data.els, getPositionPtrFunc);
-            migrate_data(zlb, mesh_data.els, pointAssignFunc, datatype, APP_COMM);
-            //auto zlb = Zoltan_Copy(zz);
-            if(!rank) std::cout << "SIM (ASTAR Criterion): Computation is starting" << std::endl;
-            //auto mesh_data = particles;
-            Probe probe(nproc);
+            auto[zlb, mesh_data, probe, lbtime] = init_exp_uniform_cube_fixed_stripe_LB< N>(simbox, params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc,  "(A* mimic): ");
             probe.push_load_balancing_time(load_balancing_cost);
             PolicyExecutor menon_criterion_policy(&probe,[opt_scenario](Probe &probe) {
                 return (bool) opt_scenario.at(probe.get_current_iteration());
             });
             simulate<N>(zlb, &mesh_data, &menon_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "astar_mimic");
             destroy(zlb);
-
         }
     }
 
-    if(true){//burn cpu cycle
- 	
-        MPI_Comm APP_COMM;
-        MPI_Comm_dup(MPI_COMM_WORLD, &APP_COMM);
+    {//burn cpu cycle
 
         auto burn_params = option.value();
 	    burn_params.npart  = params.npart * 0.1f;
 	    burn_params.nframes= 1;
 	    burn_params.npframe= 1000;
 
-        auto* zlb = new StripeLB<elements::Element<N>, N, N-1>(APP_COMM);
-        auto mesh_data = generate_random_particles<N>(rank, burn_params,
-                                                   SpherePosition<N>(params.simsize / 2.0, box_center),
-                                                   ContractSphereVelocity<N>(params.T0, box_center));
-        zlb->partition(mesh_data.els, getPositionPtrFunc);
-        migrate_data(zlb, mesh_data.els, pointAssignFunc, datatype, APP_COMM);
-
-        if(!rank) std::cout << "Burn CPU cycles: Computation is starting" << std::endl;
-        Probe probe(nproc);
-	    PolicyExecutor menon_criterion_policy(&probe, [](Probe &probe) {
-            return false;
-        });
-
+        auto[zlb, mesh_data, probe, lbtime] = init_exp_uniform_cube_fixed_stripe_LB< N>(simbox, burn_params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc,  "Burn CPU cycles: ");
+	    PolicyExecutor menon_criterion_policy(&probe, [](Probe &probe) { return false; });
         simulate<N>(zlb, &mesh_data, &menon_criterion_policy, fWrapper, &burn_params, &probe, datatype, APP_COMM, "burn");
         destroy(zlb);
     }
@@ -236,51 +163,22 @@ int main(int argc, char** argv) {
 
     /** Experience Menon **/
     {
-        //auto zlb = zoltan_create_wrapper(APP_COMM);
-        auto* zlb = new StripeLB<elements::Element<N>, N, N-1>(APP_COMM);
-        auto mesh_data = generate_random_particles<N>(rank, params,
-                                                      SpherePosition<N>(params.simsize / 2.0, box_center),
-                                                   ContractSphereVelocity<N>(params.T0, box_center));
 
-	    PAR_START_TIMER(lbtime, APP_COMM);
-        zlb->partition(mesh_data.els, getPositionPtrFunc);
-        migrate_data(zlb, mesh_data.els, pointAssignFunc, datatype, APP_COMM);
-	    END_TIMER(lbtime);
-        MPI_Allreduce(MPI_IN_PLACE, &lbtime, 1, MPI_TIME, MPI_MAX, APP_COMM);
-
-        if(!rank) {
-	        std::cout << rank << " SIM (Menon Criterion): Computation is starting" << std::endl;
-	    }
-
-        Probe probe(nproc);
+        auto[zlb, mesh_data, probe, lbtime] = init_exp_uniform_cube_fixed_stripe_LB< N>(simbox, params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc,  "Menon (baseline): ");
         probe.push_load_balancing_time(lbtime / 2.0);
         PolicyExecutor menon_criterion_policy(&probe, [](Probe &probe) {
             return (probe.get_cumulative_imbalance_time() >= probe.compute_avg_lb_time());
         });
         simulate<N>(zlb, &mesh_data, &menon_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "menon");
         destroy(zlb);
-
     }
 
     /** Experience Procassini **/
     {
-        auto* zlb=new StripeLB<elements::Element<N>, N, N-1>(APP_COMM);
-        auto mesh_data = generate_random_particles<N>(rank, params,
-                                                   SpherePosition<N>(params.simsize / 2.0, box_center),
-                                                   ContractSphereVelocity<N>(params.T0, box_center));
+        auto[zlb, mesh_data, probe, lbtime] = init_exp_uniform_cube_fixed_stripe_LB< N>(simbox, params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc,  "Procassini: ");
 
-	    PAR_START_TIMER(lbtime, APP_COMM);
-        zlb->partition(mesh_data.els, getPositionPtrFunc);
-        migrate_data(zlb, mesh_data.els, pointAssignFunc, datatype, APP_COMM);
-	    END_TIMER(lbtime);
-
-        MPI_Allreduce(MPI_IN_PLACE, &lbtime, 1, MPI_TIME, MPI_MAX, APP_COMM);
-        
-	    Probe probe(nproc);
-        probe.push_load_balancing_time(load_balancing_cost);
+        probe.push_load_balancing_time(lbtime);
         probe.push_load_balancing_parallel_efficiency(load_balancing_parallel_efficiency);
-
-        par::pcout() << "SIM (Procassini Criterion): Computation is starting." << std::endl;
 
         PolicyExecutor procassini_criterion_policy(&probe, [](Probe& probe) {
                 Real epsilon_c = probe.get_efficiency();
