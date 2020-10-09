@@ -34,7 +34,7 @@ set(BIN_MARQU   "yalbb_marqu")
 set(BINARY_NAME_TEST "yalbb_otest")
 
 add_executable(${BINARY_NAME} src/main.cpp ${SRC} ${HEADERS} src/StripeLB.hpp)
-target_include_directories(${BINARY_NAME} PRIVATE ${MPI_C_INCLUDE_PATH} ${YALBB_INCLUDE_DIRECTORY} ${ZOLTAN_INCLUDE_DIRECTORY})
+target_include_directories(${BINARY_NAME} PRIVATE ${MPI_C_INCLUDE_PATH} ${YALBB_INCLUDE_DIRECTORY} ${ZOLTAN_INCLUDE_DIRECTORY} useful-algorithms/include)
 target_link_libraries(${BINARY_NAME} PRIVATE ${MPI_C_LIBRARY} ${ZOLTAN_LIBRARY_PATH}  ${YALBB_LIBRARY_PATH} stdc++fs ${ZOLTAN_LIBRARY_PATH} ${CMAKE_THREAD_LIBS_INIT})
 
 add_executable(${BIN_ASTAR} src/main_astar.cpp ${SRC} ${HEADERS})

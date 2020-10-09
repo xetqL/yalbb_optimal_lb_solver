@@ -19,6 +19,7 @@ namespace elements {
 
     using Real = Real;
     using Index = Integer;
+
     template<int N>
     struct Element {
 
@@ -46,7 +47,6 @@ namespace elements {
             std::generate(v.begin(), v.end(), [&dist, &gen](){return dist(gen);});
             return Element::create(p, v, gid, lid);
         }
-
 
         template<class Distribution, class Generator, class RejectionPredicate>
         static Element<N> create_random( Distribution& dist, Generator &gen, Index gid, Index lid, RejectionPredicate pred){

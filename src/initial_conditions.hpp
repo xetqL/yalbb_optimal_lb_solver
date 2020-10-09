@@ -632,8 +632,8 @@ struct ContractSphereVelocity  {
     }
 };
 
-template<int N> using  SpherePosition       = statistic::UniformSphericalDistribution<N, Real>;
-template<int N> using  OnSphereEdgePosition = statistic::UniformOnSphereEdgeDistribution<N, Real>;
+template<int N> using  SpherePosition = statistic::UniformSphericalDistribution<N, Real>;
+template<int N> using  OnSphereEdgePosition   = statistic::UniformOnSphereEdgeDistribution<N, Real>;
 template<int N> struct LoadPositionsFromFile {
     std::ifstream infile;
     std::string   header;
@@ -670,7 +670,7 @@ template<int N, class  PositionFunctor, class VelocityFunctor>
 MESH_DATA<elements::Element<N>> generate_random_particles(int rank, sim_param_t params, PositionFunctor rand_pos, VelocityFunctor rand_vel) {
     MESH_DATA<elements::Element<N>> mesh;
     if (!rank) {
-        std::cout << "Generating data ..." << std::endl;
+        std::cout << "Generating data ... "<< std::endl;
         std::mt19937 my_gen(params.seed);
         for(int i = 0;i < params.npart; ++i) {
             auto pos = rand_pos(my_gen);
@@ -678,7 +678,7 @@ MESH_DATA<elements::Element<N>> generate_random_particles(int rank, sim_param_t 
         }
         std::cout << mesh.els.size() << " Done !" << std::endl;
     }
-
+    MPI_Barrier(MPI_COMM_WORLD);
     return mesh;
 }
 

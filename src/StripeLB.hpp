@@ -15,7 +15,7 @@
 #include <vector>
 #include <numeric>
 template<class T, int N, int cutDim>
-class StripeLB {
+struct StripeLB {
     static_assert(0 <= cutDim && cutDim < N);
 
     using Stripe = std::pair<Real, Real>;
@@ -34,7 +34,7 @@ class StripeLB {
     int rank, world_size;
     std::vector<Stripe> stripes;
 
-public:
+
     StripeLB(MPI_Comm comm) : comm(comm) {
         MPI_Comm_size(comm, &world_size);
         MPI_Comm_rank(comm, &rank);
@@ -43,19 +43,35 @@ public:
 
     template<class GetPositionFunc>
     void partition(std::vector<T>& elements, GetPositionFunc getPosition) {
-        Real prev = 0.0, next;
+        Real prev = std::numeric_limits<Real>::lowest(), next;
         Real n = elements.size(), total_n;
         MPI_Allreduce(&n, &total_n, 1, par::get_mpi_type<Real>(), MPI_SUM, comm);
         size_t avg_n = total_n / world_size;
-        for(int pe = 0; pe < world_size; ++pe) {
-            next = getPosition(&par::find_nth(elements.begin(), elements.end(), pe * avg_n, [getPosition](auto& v){return getPosition(&v).at(cutDim);})).at(cutDim);
-            stripes.at(pe) = {prev, next};
+        int pe;
+        for(pe = 1; pe < (world_size); ++pe) {
+            next = par::find_nth(elements.begin(), elements.end(), pe * avg_n, comm, [getPosition](auto v){return getPosition(&v)->at(cutDim);});
+            stripes.at(pe-1) = {prev, next};
             prev = next;
+            par::pcout() <<stripes.at(pe-1).first << ", " << stripes.at(pe-1).second << std::endl;
         }
+        stripes.at(pe-1) = {prev, std::numeric_limits<Real>::max()};
+        par::pcout() << stripes.at(pe-1).first << ", " << stripes.at(pe-1).second << std::endl;
+
+
+
     }
     void lookup_domain(const std::array<Real, N>& point, int* PE) const {
-        for(*PE = 0; !is_inside(point.at(cutDim), stripes.at(*PE)); (*PE)++);
+
+        for(*PE = 0; (*PE) < world_size ; (*PE)++) {
+            if(is_inside(point.at(cutDim), stripes.at(*PE))) return;
+        }
+
+        if(*PE == world_size) {
+            std::cout << point[cutDim] << std::endl;
+            throw std::logic_error("An element must belong to someone ! at");
+        }
     }
+
     std::vector<int> get_neighbors(int PE, Real min_distance) const {
         std::vector<int> neighbors; neighbors.reserve(world_size);
         for(int neighbor_rank = 0; neighbor_rank < world_size; ++neighbor_rank){
@@ -64,7 +80,24 @@ public:
         }
         return neighbors;
     }
-
+    friend StripeLB<T,N,cutDim>* allocate_from(StripeLB<T, N, cutDim>& t);
+    friend StripeLB<T,N,cutDim>* allocate_from(StripeLB<T, N, cutDim>* t);
 };
+
+template<class T, int N, int C>
+StripeLB<T,N,C>* allocate_from(StripeLB<T,N,C>& t) {
+    auto* ptr = new StripeLB<T,N,C>(t.comm);
+    std::copy(t.stripes.begin(), t.stripes.end(), ptr->stripes.begin());
+    ptr->rank = t.rank;
+    ptr->world_size = t.world_size;
+    return ptr;
+}
+
+
+
+template<class T, int N, int C>
+void destroy(StripeLB<T,N,C>* t) {
+    delete t;
+}
 
 #endif //YALBB_EXAMPLE_STRIPELB_HPP
