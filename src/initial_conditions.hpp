@@ -581,93 +581,116 @@ class ParticleWallRandomElementsGenerator : public RandomElementsGenerator<N> {
 
 
 } // end of namespace initial_condition
-template<int N>
-struct ExpandSphereVelocity {
-    std::array<Real, N> expand_from;
-    Real temp;
-    std::uniform_real_distribution<Real> uniform;
+namespace vel {
+    template<int N>
+    struct ExpandFromPoint {
+        std::array<Real, N> expand_from;
+        Real temp;
+        std::uniform_real_distribution<Real> uniform;
 
-    explicit ExpandSphereVelocity(Real temp, std::array<Real, N> expand_from) :
-        temp(temp), uniform(0.0, 2.0*temp*temp), expand_from((expand_from)) {
-    }
-
-    virtual std::array<Real, N> operator()(std::mt19937 &gen, const std::array<Real, N>& pos) {
-        auto strength = uniform(gen);
-        std::array<Real, N> vec;
-        for(int i = 0; i < N; ++i) vec[i] = pos[i] - expand_from[i];
-        Real length = std::sqrt(std::accumulate(vec.begin(), vec.end(), (Real) 0.0, [](auto p, auto v){return p + v*v;}));
-        if constexpr (N==3)
-            return {
-                    ((vec[0] / length)) * strength,
-                    ((vec[1] / length)) * strength,
-                    ((vec[2] / length)) * strength
-            };
-        else
-            return { 0.0f, 0.0f };
-    }
-};
-template<int N>
-struct ContractSphereVelocity  {
-    std::array<Real, N> expand_from;
-    Real temp;
-    std::uniform_real_distribution<Real> uniform;
-    explicit ContractSphereVelocity(Real temp, std::array<Real, N> expand_from) :
-            temp(temp), uniform(0.0, 2.0*temp*temp), expand_from(std::move(expand_from)) {}
-
-    std::array<Real, N> operator()(std::mt19937 &gen, const std::array<Real, N>& pos) {
-        Real strength = uniform(gen);
-        std::array<Real, N> vec;
-        for(int i = 0; i < N; ++i) {
-            vec[i] = expand_from[i] - pos[i];
+        explicit ExpandFromPoint(Real temp, std::array<Real, N> expand_from) :
+                temp(temp), uniform(0.0, 2.0*temp*temp), expand_from((expand_from)) {
         }
-        Real length = std::sqrt(std::accumulate(vec.begin(), vec.end(), (Real) 0.0, [](auto p, auto v){return p + v*v;}));
-        if constexpr (N==3)
-            return {
-                    ((vec[0] / length)) * strength,
-                    ((vec[1] / length)) * strength,
-                    ((vec[2] / length)) * strength
-            };
-        else
-            return { 0.0f, 0.0f };
-    }
-};
 
-template<int N> using  SpherePosition       = statistic::UniformSphericalDistribution<N, Real>;
-template<int N> using  OnSphereEdgePosition = statistic::UniformOnSphereEdgeDistribution<N, Real>;
-template<int N> struct LoadPositionsFromFile {
-    std::ifstream infile;
-    std::string   header;
-    LoadPositionsFromFile(std::string fname) : infile(fname) {
-        std::getline(infile, header);
-    }
-
-    std::array<Real, N> operator()(std::mt19937 &gen) {
-        return io::load_one<N>(infile);
-    }
-};
-template<int N> struct FixedPosition {
-    Real p;
-    std::array<Real, N> operator()(std::mt19937 &gen) {
-        if constexpr(N==3) return {p,p,p}; else return {p, p};
-    }
-};
-template<int N> struct CubePosition {
-    std::array<Real, 2*N> dimension;
-    std::uniform_real_distribution<Real> uniform{(Real) 0.0, (Real) 1.0};
-    explicit CubePosition(std::array<Real, 2*N> dimension) : dimension(std::move(dimension)) {}
-    std::array<Real, N> operator()(std::mt19937 &gen) {
-        if constexpr(N==3){
-            return { uniform(gen) * (dimension.at(1)-dimension.at(0)) + dimension.at(0),
-                     uniform(gen) * (dimension.at(3)-dimension.at(2)) + dimension.at(2),
-                     uniform(gen) * (dimension.at(5)-dimension.at(4)) + dimension.at(4)};
-        } else {
-            return { uniform(gen) * (dimension.at(1)-dimension.at(0)) + dimension.at(0),
-                     uniform(gen) * (dimension.at(3)-dimension.at(2)) + dimension.at(2)};
+        std::array<Real, N> operator()(std::mt19937 &gen, const std::array<Real, N>& pos) {
+            auto strength = uniform(gen);
+            std::array<Real, N> vec;
+            for(int i = 0; i < N; ++i) vec[i] = pos[i] - expand_from[i];
+            Real length = std::sqrt(std::accumulate(vec.begin(), vec.end(), (Real) 0.0, [](auto p, auto v){return p + v*v;}));
+            if constexpr (N==3)
+                return {
+                        ((vec[0] / length)) * strength,
+                        ((vec[1] / length)) * strength,
+                        ((vec[2] / length)) * strength
+                };
+            else
+                return { 0.0f, 0.0f };
         }
-    }
-};
+    };
+    template<int N>
+    struct ContractToPoint {
+        std::array<Real, N> expand_from;
+        Real temp;
+        std::uniform_real_distribution<Real> uniform;
+        explicit ContractToPoint(Real temp, std::array<Real, N> expand_from) :
+                temp(temp), uniform(0.0, 2.0*temp*temp), expand_from(std::move(expand_from)) {}
+
+        std::array<Real, N> operator()(std::mt19937 &gen, const std::array<Real, N>& pos) {
+            Real strength = uniform(gen);
+            std::array<Real, N> vec;
+            for(int i = 0; i < N; ++i) {
+                vec[i] = expand_from[i] - pos[i];
+            }
+            Real length = std::sqrt(std::accumulate(vec.begin(), vec.end(), (Real) 0.0, [](auto p, auto v){return p + v*v;}));
+            if constexpr (N==3)
+                return {
+                        ((vec[0] / length)) * strength,
+                        ((vec[1] / length)) * strength,
+                        ((vec[2] / length)) * strength
+                };
+            else
+                return { 0.0f, 0.0f };
+        }
+    };
+
+    template<int N, unsigned Axis>
+    struct ParallelToAxis {
+        static_assert(Axis < N);
+        const Real p;
+        ParallelToAxis(Real p) : p(p) {}
+        constexpr std::array<Real, N> operator()(std::mt19937 &gen, const std::array<Real, N>& pos) {
+            std::array<Real, N> vel {};
+            vel.at(Axis) = p;
+            return vel;
+        }
+    };
+    template<int N>
+    struct None {
+        constexpr std::array<Real, N> operator()(std::mt19937 &gen, const std::array<Real, N>& pos) {
+            std::array<Real, N> vel {};
+            return vel;
+        }
+    };
+
+}
+namespace pos {
+    template<int N> struct UniformInCube {
+        std::array<Real, 2*N> dimension;
+        std::uniform_real_distribution<Real> uniform{(Real) 0.0, (Real) 1.0};
+        explicit UniformInCube(std::array<Real, 2*N> dimension) : dimension(std::move(dimension)) {}
+        std::array<Real, N> operator()(std::mt19937 &gen) {
+            if constexpr(N==3){
+                return { uniform(gen) * (dimension.at(1)-dimension.at(0)) + dimension.at(0),
+                         uniform(gen) * (dimension.at(3)-dimension.at(2)) + dimension.at(2),
+                         uniform(gen) * (dimension.at(5)-dimension.at(4)) + dimension.at(4)};
+            } else {
+                return { uniform(gen) * (dimension.at(1)-dimension.at(0)) + dimension.at(0),
+                         uniform(gen) * (dimension.at(3)-dimension.at(2)) + dimension.at(2)};
+            }
+        }
+    };
+    template<int N> using  UniformInSphere = statistic::UniformSphericalDistribution<N, Real>;
+    template<int N> using  UniformOnSphere = statistic::UniformOnSphereEdgeDistribution<N, Real>;
+    template<int N> struct LoadFromFile {
+        std::ifstream infile;
+        std::string   header;
+        LoadFromFile(std::string fname) : infile(fname) {
+                std::getline(infile, header);
+        }
+        std::array<Real, N> operator()(std::mt19937 &gen) {
+            return io::load_one<N>(infile);
+        }
+    };
+    template<int N> struct Fixed {
+        Real p;
+        std::array<Real, N> operator()(std::mt19937 &gen) {
+            if constexpr(N==3) return {p, p, p}; else return {p, p};
+        }
+    };
+}
+
 template<int N, class  PositionFunctor, class VelocityFunctor>
-MESH_DATA<elements::Element<N>> generate_random_particles(int rank, sim_param_t params, PositionFunctor rand_pos, VelocityFunctor rand_vel) {
+MESH_DATA<elements::Element<N>> generate_random_particles(int rank, const sim_param_t& params, PositionFunctor rand_pos, VelocityFunctor rand_vel) {
     MESH_DATA<elements::Element<N>> mesh;
     if (!rank) {
         std::cout << "Generating data ..." << std::endl;
