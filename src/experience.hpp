@@ -13,6 +13,8 @@
 #include "StripeLB.hpp"
 #include "zoltan_fn.hpp"
 #include "initial_conditions.hpp"
+
+
 template<int N, class GetPosFunc, class GetPointFunc>
 std::tuple<StripeLB<elements::Element<N>, N, N-1>*, MESH_DATA<elements::Element<N>>, Probe, double>
 init_exp_uniform_cube_fixed_stripe_LB(

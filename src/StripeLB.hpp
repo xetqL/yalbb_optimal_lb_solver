@@ -52,13 +52,8 @@ struct StripeLB {
             next = par::find_nth(elements.begin(), elements.end(), pe * avg_n, comm, [getPosition](auto v){return getPosition(&v)->at(cutDim);});
             stripes.at(pe-1) = {prev, next};
             prev = next;
-            par::pcout() <<stripes.at(pe-1).first << ", " << stripes.at(pe-1).second << std::endl;
         }
         stripes.at(pe-1) = {prev, std::numeric_limits<Real>::max()};
-        par::pcout() << stripes.at(pe-1).first << ", " << stripes.at(pe-1).second << std::endl;
-
-
-
     }
     void lookup_domain(const std::array<Real, N>& point, int* PE) const {
 
@@ -81,11 +76,10 @@ struct StripeLB {
         return neighbors;
     }
     friend StripeLB<T,N,cutDim>* allocate_from(StripeLB<T, N, cutDim>& t);
-    friend StripeLB<T,N,cutDim>* allocate_from(StripeLB<T, N, cutDim>* t);
 };
 
 template<class T, int N, int C>
-StripeLB<T,N,C>* allocate_from(StripeLB<T,N,C>& t) {
+StripeLB<T, N, C>* allocate_from(StripeLB<T, N, C>& t) {
     auto* ptr = new StripeLB<T,N,C>(t.comm);
     std::copy(t.stripes.begin(), t.stripes.end(), ptr->stripes.begin());
     ptr->rank = t.rank;

@@ -16,7 +16,8 @@
 #include "spatial_elements.hpp"
 #include "utils.hpp"
 #include "experience.hpp"
-#include <chrono>
+#include "../../yalbb/includes/yalbb/policy.hpp"
+
 template<int N>
 MESH_DATA<elements::Element<N>> generate_random_particles_with_rejection(int rank, sim_param_t params) {
     MESH_DATA<elements::Element<N>> mesh;
@@ -40,6 +41,8 @@ MESH_DATA<elements::Element<N>> generate_random_particles_with_rejection(int ran
 
     return mesh;
 }
+constexpr unsigned NumConfig = 5;
+using Config = std::tuple<std::string, std::string, sim_param_t, lb::Criterion>;
 
 int main(int argc, char** argv) {
     constexpr int N = 3;
@@ -63,9 +66,13 @@ int main(int argc, char** argv) {
     }
 
     auto params = option.value();
+    auto burn_params = option.value();
 
     params.rc = 2.5f * params.sig_lj;
     params.simsize = std::ceil(params.simsize / params.rc) * params.rc;
+    burn_params.npart   = params.npart * 0.1f;
+    burn_params.nframes = 1;
+    burn_params.npframe = 1000;
 
     std::array<Real, 2*N> simbox     = {0, params.simsize, 0,params.simsize, 0,params.simsize};
     std::array<Real, N>   simlength  = {params.simsize, params.simsize, params.simsize};
@@ -147,100 +154,43 @@ int main(int argc, char** argv) {
 
     FunctionWrapper fWrapper(getPositionPtrFunc, getVelocityPtrFunc, getForceFunc, boxIntersectFunc, pointAssignFunc, doLoadBalancingFunc);
 
-
-//    std::cout << particles.els.size() << std::endl;
     double load_balancing_cost = 0;
     double load_balancing_parallel_efficiency = 0;
+
+    std::vector<Config> configs;
 
     /** Burn CPU cycle */
     {
         MPI_Comm APP_COMM;
         MPI_Comm_dup(MPI_COMM_WORLD, &APP_COMM);
-
-        auto burn_params = option.value();
-        burn_params.npart   = params.npart * 0.1f;
-        burn_params.nframes = 1;
-        burn_params.npframe = 1000;
-
-        auto[zlb, mesh_data, probe, lbtime] = init_exp_uniform_cube_fixed_stripe_LB<N>(simbox, burn_params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, "(A* optimized):");
-
-        PolicyExecutor menon_criterion_policy(&probe, [](Probe &probe) { return false; });
-        simulate<N>(zlb, &mesh_data, &menon_criterion_policy, fWrapper, &burn_params, &probe, datatype, APP_COMM, "burn");
+        auto[zlb, mesh_data, probe, lbtime] = init_exp_uniform_cube_fixed_stripe_LB<N>(simbox, burn_params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, "Burn CPU Cycle:");
+        simulate<N>(zlb, &mesh_data, lb::Static {}, fWrapper, &burn_params, &probe, datatype, APP_COMM, "BURN");
     }
 
     std::vector<int> opt_scenario;
     Probe solution_stats(nproc);
     if(params.nb_best_path) {
-
-        auto[zlb, mesh_data, probe, lbtime] = init_exp_uniform_cube_fixed_stripe_LB<N>(simbox, params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, "(A* optimized):");
-
+        auto[zlb, mesh_data, probe, lbtime] = init_exp_uniform_cube_fixed_stripe_LB<N>(simbox, params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, "A*\n");
         std::tie(solution_stats,opt_scenario) = simulate_shortest_path<N>(zlb, &mesh_data,  fWrapper, &params, datatype,
-                      [](auto* lb){ return allocate_from(*lb);},
-                      [](auto* lb){ destroy(lb);}, APP_COMM, "astar");
+                      [](auto* lb){ return allocate_from<elements::Element<N>, N, N-1>(*lb);},
+                      [](auto* lb){ destroy(lb);}, APP_COMM, "Astar");
         load_balancing_cost = solution_stats.compute_avg_lb_time();
-        /** Experience Reproduce ASTAR **/
-        {
-            auto[zlb, mesh_data, probe, lbtime] = init_exp_uniform_cube_fixed_stripe_LB<N>(simbox, params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, "(A* optimized):");
-
-            probe.push_load_balancing_time(load_balancing_cost);
-            PolicyExecutor menon_criterion_policy(&probe, [opt_scenario](Probe &probe) {
-                return (bool) opt_scenario.at(probe.get_current_iteration());
-            });
-            simulate<N>(zlb, &mesh_data, &menon_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "astar_mimic");
-            }
+        configs.emplace_back("AstarReproduce\n", "AstarReproduce", params, lb::Reproduce{opt_scenario});
     }
 
-    /** Experience Vanilla Menon **/
-    {
-        auto[zlb, mesh_data, probe, lbtime] = init_exp_uniform_cube_fixed_stripe_LB<N>(simbox, params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, "(A* optimized):");
-        probe.push_load_balancing_time(lbtime / 2.0);
-        PolicyExecutor menon_criterion_policy(&probe, [](Probe &probe) {
-            //
-            return (probe.get_vanilla_cumulative_imbalance_time() >= probe.compute_avg_lb_time());
-        });
-        simulate<N>(zlb, &mesh_data, &menon_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "VanillaMenon");
-    }
+    configs.emplace_back("\nVanillaMenon", "VMenon", params, lb::VanillaMenon{});
+    configs.emplace_back("\nImprovedMenon", "IMenon", params, lb::ImprovedMenon{});
+    configs.emplace_back("\nProcassini 100", "Procassini_100p", params, lb::Procassini{1.0});
+    configs.emplace_back("\nProcassini 90", "Procassini_90p", params, lb::Procassini{0.95});
+    configs.emplace_back("\nMarquez 85", "Marquez_85", params, lb::Marquez{0.85});
+    configs.emplace_back("\nMarquez 65", "Marquez_65", params, lb::Marquez{0.65});
 
-    /** Experience Improved Menon **/
-    {
-        auto[zlb, mesh_data, probe, lbtime] = init_exp_uniform_cube_fixed_stripe_LB<N>(simbox, params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, "(A* optimized):");
-        probe.push_load_balancing_time(lbtime / 2.0);
-        PolicyExecutor menon_criterion_policy(&probe, [](Probe &probe) {
-            return (probe.get_cumulative_imbalance_time() >= probe.compute_avg_lb_time());
-        });
-        simulate<N>(zlb, &mesh_data, &menon_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "ImprovedMenon");
-    }
-
-    /** Experience Procassini **/
-    {
-        auto[zlb, mesh_data, probe, lbtime] = init_exp_uniform_cube_fixed_stripe_LB<N>(simbox, params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, "(A* optimized):");
-
-        probe.push_load_balancing_time(lbtime);
+    for(auto& cfg : configs){
+        auto& [preamble, name, params, criterion] = cfg;
+        auto[zlb, mesh_data, probe, lbtime] = init_exp_uniform_cube_fixed_stripe_LB<N>(simbox, params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, preamble);
+        probe.push_load_balancing_time(load_balancing_cost);
         probe.push_load_balancing_parallel_efficiency(1.0);
-        PolicyExecutor procassini_criterion_policy(&probe,
-        [](Probe &probe) {
-                Real epsilon_c = probe.get_efficiency();
-                Real epsilon_lb= probe.compute_avg_lb_parallel_efficiency(); //estimation based on previous lb call
-                Real S         = epsilon_c / epsilon_lb;
-                Real tau_prime = probe.get_batch_time() *  S + probe.compute_avg_lb_time(); //estimation of next iteration time based on speed up + LB cost
-                Real tau       = probe.get_batch_time();
-                return (tau_prime < tau);
-            });
-        simulate<N>(zlb, &mesh_data, &procassini_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "Procassini");
-
-    }
-
-    /** Experience Marquez **/
-    {
-        auto[zlb, mesh_data, probe, lbtime] = init_exp_uniform_cube_fixed_stripe_LB<N>(simbox, params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, "(A* optimized):");
-        PolicyExecutor marquez_criterion_policy(&probe,
-            [threshold=0.2](Probe &probe) {
-                Real tolerance      = probe.get_avg_it() * threshold;
-                Real tolerance_plus = probe.get_avg_it() + tolerance;
-                Real tolerance_minus= probe.get_avg_it() - tolerance;
-                return (probe.get_min_it() < tolerance_minus || tolerance_plus < probe.get_max_it());
-        });
-        simulate<N>(zlb, &mesh_data, &marquez_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "Marquez");
+        simulate<N>(zlb, &mesh_data, criterion, fWrapper, &params, &probe, datatype, APP_COMM, name);
     }
 
     MPI_Finalize();
