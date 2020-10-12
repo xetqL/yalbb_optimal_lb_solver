@@ -56,10 +56,8 @@ struct StripeLB {
         }
         stripes.at(pe-1) = {prev, std::numeric_limits<Real>::max()};
         par::pcout() << stripes.at(pe-1).first << ", " << stripes.at(pe-1).second << std::endl;
-
-
-
     }
+
     void lookup_domain(const std::array<Real, N>& point, int* PE) const {
 
         for(*PE = 0; (*PE) < world_size ; (*PE)++) {
@@ -80,8 +78,8 @@ struct StripeLB {
         }
         return neighbors;
     }
-    friend StripeLB<T,N,cutDim>* allocate_from(StripeLB<T, N, cutDim>& t);
-    friend StripeLB<T,N,cutDim>* allocate_from(StripeLB<T, N, cutDim>* t);
+
+    template<class TT, int TN, int TC> friend  StripeLB<TT,TN,TC>* allocate_from(StripeLB<TT,TN,TC>& t);
 };
 
 template<class T, int N, int C>
