@@ -93,8 +93,6 @@ StripeLB<T,N,C>* allocate_from(StripeLB<T,N,C>& t) {
     return ptr;
 }
 
-
-
 template<class T, int N, int C>
 void destroy(StripeLB<T,N,C>* t) {
     delete t;
