@@ -186,21 +186,33 @@ int main(int argc, char** argv) {
             auto[zlb, mesh_data, probe, lbtime] = init_exp_contracting_sphere_zoltan<N>(simbox, params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, "(A* optimized):");
 
             probe.push_load_balancing_time(load_balancing_cost);
-            PolicyExecutor menon_criterion_policy(&probe,[opt_scenario](Probe &probe) {
+            PolicyExecutor menon_criterion_policy(&probe, [opt_scenario](Probe &probe) {
                 return (bool) opt_scenario.at(probe.get_current_iteration());
             });
             simulate<N>(zlb, &mesh_data, &menon_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "astar_mimic");
         }
     }
 
-    /** Experience Menon **/
+    /** Experience Vanilla Menon **/
     {
         auto[zlb, mesh_data, probe, lbtime] = init_exp_contracting_sphere_zoltan<N>(simbox, params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, "(A* optimized):");
         probe.push_load_balancing_time(lbtime / 2.0);
-        PolicyExecutor menon_criterion_policy(&probe, [nframes=params.nframes, npframe = params.npframe](Probe &probe) {
+        PolicyExecutor menon_criterion_policy(&probe, [](Probe &probe) {
+            //
+            return (probe.get_vanilla_cumulative_imbalance_time() >= probe.compute_avg_lb_time());
+        });
+        simulate<N>(zlb, &mesh_data, &menon_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "VanillaMenon");
+        Zoltan_Destroy(&zlb);
+    }
+
+    /** Experience Improved Menon **/
+    {
+        auto[zlb, mesh_data, probe, lbtime] = init_exp_contracting_sphere_zoltan<N>(simbox, params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, "(A* optimized):");
+        probe.push_load_balancing_time(lbtime / 2.0);
+        PolicyExecutor menon_criterion_policy(&probe, [](Probe &probe) {
             return (probe.get_cumulative_imbalance_time() >= probe.compute_avg_lb_time());
         });
-        simulate<N>(zlb, &mesh_data, &menon_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "menon");
+        simulate<N>(zlb, &mesh_data, &menon_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "ImprovedMenon");
         Zoltan_Destroy(&zlb);
     }
 
@@ -221,7 +233,20 @@ int main(int argc, char** argv) {
                 return (tau_prime < tau);
             });
 
-        simulate<N>(zlb, &mesh_data, &procassini_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "procassini");
+        simulate<N>(zlb, &mesh_data, &procassini_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "Procassini");
+    }
+
+    /** Experience Marquez **/
+    {
+        auto[zlb, mesh_data, probe, lbtime] = init_exp_contracting_sphere_zoltan<N>(simbox, params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, "(A* optimized):");
+        PolicyExecutor marquez_criterion_policy(&probe,
+            [threshold=0.2](Probe &probe) {
+                Real tolerance      = probe.get_avg_it() * threshold;
+                Real tolerance_plus = probe.get_avg_it() + tolerance;
+                Real tolerance_minus= probe.get_avg_it() - tolerance;
+                return (probe.get_min_it() < tolerance_minus || tolerance_plus < probe.get_max_it());
+        });
+        simulate<N>(zlb, &mesh_data, &marquez_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "Marquez");
     }
 
     MPI_Finalize();
