@@ -190,6 +190,7 @@ int main(int argc, char** argv) {
                 return (bool) opt_scenario.at(probe.get_current_iteration());
             });
             simulate<N>(zlb, &mesh_data, &menon_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "astar_mimic");
+            Zoltan_Destroy(&zlb);
         }
     }
 
@@ -222,7 +223,6 @@ int main(int argc, char** argv) {
 
         probe.push_load_balancing_time(lbtime);
         probe.push_load_balancing_parallel_efficiency(1.0);
-
         PolicyExecutor procassini_criterion_policy(&probe,
         [](Probe &probe) {
                 Real epsilon_c = probe.get_efficiency();
@@ -232,8 +232,9 @@ int main(int argc, char** argv) {
                 Real tau       = probe.get_batch_time();
                 return (tau_prime < tau);
             });
-
         simulate<N>(zlb, &mesh_data, &procassini_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "Procassini");
+        Zoltan_Destroy(&zlb);
+
     }
 
     /** Experience Marquez **/
