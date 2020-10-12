@@ -16,7 +16,8 @@
 #include "spatial_elements.hpp"
 #include "utils.hpp"
 #include "experience.hpp"
-#include <chrono>
+#include "../../yalbb/includes/yalbb/policy.hpp"
+
 template<int N>
 MESH_DATA<elements::Element<N>> generate_random_particles_with_rejection(int rank, sim_param_t params) {
     MESH_DATA<elements::Element<N>> mesh;
@@ -33,13 +34,15 @@ MESH_DATA<elements::Element<N>> generate_random_particles_with_rejection(int ran
         std::uniform_real_distribution<Real> udist(0, 2.0*params.T0*params.T0);
         initial_condition::lj::RandomElementsGen<N>(params.seed, MAX_TRIAL, condition)
                 .generate_elements(mesh.els, params.npart,
-                                   [&sphere](auto& my_gen) -> std::array<Real, N> { return sphere(my_gen); },
-                                   [&udist] (auto& my_gen) -> std::array<Real, N> { return {udist(my_gen), udist(my_gen), udist(my_gen)};});
+                        [&sphere](auto& my_gen) -> std::array<Real, N> { return sphere(my_gen); },
+                        [&udist] (auto& my_gen) -> std::array<Real, N> { return {udist(my_gen), udist(my_gen), udist(my_gen)};});
         std::cout << mesh.els.size() << " Done !" << std::endl;
     }
 
     return mesh;
 }
+constexpr unsigned NumConfig = 5;
+using Config = std::tuple<std::string, std::string, sim_param_t, lb::Criterion>;
 
 int main(int argc, char** argv) {
     constexpr int N = 3;
@@ -63,9 +66,13 @@ int main(int argc, char** argv) {
     }
 
     auto params = option.value();
+    auto burn_params = option.value();
 
     params.rc = 2.5f * params.sig_lj;
     params.simsize = std::ceil(params.simsize / params.rc) * params.rc;
+    burn_params.npart   = params.npart * 0.1f;
+    burn_params.nframes = 1;
+    burn_params.npframe = 1000;
 
     std::array<Real, 2*N> simbox     = {0, params.simsize, 0,params.simsize, 0,params.simsize};
     std::array<Real, N>   simlength  = {params.simsize, params.simsize, params.simsize};
@@ -98,7 +105,7 @@ int main(int argc, char** argv) {
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Domain-box intersection function *required*
     // Solve interactions
-    auto boxIntersectFunc   = [](auto* zlb, double x1, double y1, double z1, double x2, double y2, double z2, int* PEs, int* num_found){
+    auto boxIntersectFunc   = [rank, rc=params.rc](auto* zlb, double x1, double y1, double z1, double x2, double y2, double z2, int* PEs, int* num_found){
         Zoltan_LB_Box_Assign(zlb, x1, y1, z1, x2, y2, z2, PEs, num_found);
     };
 
@@ -119,8 +126,6 @@ int main(int argc, char** argv) {
         // ...
         std::vector<elements::Element<N>> sampled;
 
-        float sampling_size = 30.f;
-        //std::sample(mesh_data->els.begin(), mesh_data->els.end(), std::back_inserter(sampled), (unsigned int) (mesh_data->els.size() * sampling_size) , std::mt19937{std::random_device{}()});
         for(int i = 0; i < 5; ++i)
             std::copy(mesh_data->els.begin(), mesh_data->els.end(), std::back_inserter(sampled));
 
@@ -138,10 +143,7 @@ int main(int argc, char** argv) {
                                 [&interactions](const auto *r, const auto *s) {
                                     interactions.els.push_back(midpoint<N>(*r, *s));
                                 });
-
-//        std::this_thread::sleep_for(std::chrono::milliseconds(200));
-
-        Zoltan_Do_LB<N>(&interactions, zlb);
+        Zoltan_Do_LB(&interactions, zlb);
     };
 
     // Short range force function computation
@@ -151,103 +153,43 @@ int main(int argc, char** argv) {
 
     FunctionWrapper fWrapper(getPositionPtrFunc, getVelocityPtrFunc, getForceFunc, boxIntersectFunc, pointAssignFunc, doLoadBalancingFunc);
 
-
-//    std::cout << particles.els.size() << std::endl;
     double load_balancing_cost = 0;
     double load_balancing_parallel_efficiency = 0;
+
+    std::vector<Config> configs;
 
     /** Burn CPU cycle */
     {
         MPI_Comm APP_COMM;
         MPI_Comm_dup(MPI_COMM_WORLD, &APP_COMM);
-
-        auto burn_params = option.value();
-        burn_params.npart   = params.npart * 0.1f;
-        burn_params.nframes = 1;
-        burn_params.npframe = 1000;
-
-        auto[zlb, mesh_data, probe, lbtime] = init_exp_expanding_sphere_zoltan<N>(simbox, burn_params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, "(A* optimized):");
-
-        PolicyExecutor menon_criterion_policy(&probe, [](Probe &probe) { return false; });
-        simulate<N>(zlb, &mesh_data, &menon_criterion_policy, fWrapper, &burn_params, &probe, datatype, APP_COMM, "burn");
-        Zoltan_Destroy(&zlb);
+        auto[zlb, mesh_data, probe, lbtime] = init_exp_expanding_sphere_zoltan<N>(simbox, burn_params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, "Burn CPU Cycle:");
+        simulate<N>(zlb, &mesh_data, lb::Static {}, fWrapper, &burn_params, &probe, datatype, APP_COMM, "BURN");
     }
 
     std::vector<int> opt_scenario;
     Probe solution_stats(nproc);
     if(params.nb_best_path) {
-
-        auto[zlb, mesh_data, probe, lbtime] = init_exp_expanding_sphere_zoltan<N>(simbox, params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, "(A* optimized):");
-
-        std::tie(solution_stats,opt_scenario) = simulate_shortest_path<N>(zlb, &mesh_data,  fWrapper, &params, datatype, [](Zoltan_Struct* lb){ return Zoltan_Copy(lb);}, [](Zoltan_Struct* lb){ Zoltan_Destroy(&lb);}, APP_COMM, "astar");
+        auto[zlb, mesh_data, probe, lbtime] = init_exp_expanding_sphere_zoltan<N>(simbox, params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, "A*\n");
+        std::tie(solution_stats,opt_scenario) = simulate_shortest_path<N>(zlb, &mesh_data,  fWrapper, &params, datatype,
+                      [](auto* lb){ return Zoltan_Copy(lb);},
+                      [](auto* lb){ Zoltan_Destroy(&lb);}, APP_COMM, "Astar");
         load_balancing_cost = solution_stats.compute_avg_lb_time();
-        /** Experience Reproduce ASTAR **/
-        {
-            auto[zlb, mesh_data, probe, lbtime] = init_exp_expanding_sphere_zoltan<N>(simbox, params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, "(A* optimized):");
-
-            probe.push_load_balancing_time(load_balancing_cost);
-            PolicyExecutor menon_criterion_policy(&probe, [opt_scenario](Probe &probe) {
-                return (bool) opt_scenario.at(probe.get_current_iteration());
-            });
-            simulate<N>(zlb, &mesh_data, &menon_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "astar_mimic");
-            Zoltan_Destroy(&zlb);
-        }
+        configs.emplace_back("AstarReproduce\n", "AstarReproduce", params, lb::Reproduce{opt_scenario});
     }
 
-    /** Experience Vanilla Menon **/
-    {
-        auto[zlb, mesh_data, probe, lbtime] = init_exp_expanding_sphere_zoltan<N>(simbox, params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, "(A* optimized):");
-        probe.push_load_balancing_time(lbtime / 2.0);
-        PolicyExecutor menon_criterion_policy(&probe, [](Probe &probe) {
-            //
-            return (probe.get_vanilla_cumulative_imbalance_time() >= probe.compute_avg_lb_time());
-        });
-        simulate<N>(zlb, &mesh_data, &menon_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "VanillaMenon");
-        Zoltan_Destroy(&zlb);
-    }
+    configs.emplace_back("\nVanillaMenon", "VMenon", params, lb::VanillaMenon{});
+    configs.emplace_back("\nImprovedMenon", "IMenon", params, lb::ImprovedMenon{});
+    configs.emplace_back("\nProcassini 100", "Procassini_100p", params, lb::Procassini{1.0});
+    configs.emplace_back("\nProcassini 90", "Procassini_90p", params, lb::Procassini{0.95});
+    configs.emplace_back("\nMarquez 85", "Marquez_85", params, lb::Marquez{0.85});
+    configs.emplace_back("\nMarquez 65", "Marquez_65", params, lb::Marquez{0.65});
 
-    /** Experience Improved Menon **/
-    {
-        auto[zlb, mesh_data, probe, lbtime] = init_exp_expanding_sphere_zoltan<N>(simbox, params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, "(A* optimized):");
-        probe.push_load_balancing_time(lbtime / 2.0);
-        PolicyExecutor menon_criterion_policy(&probe, [](Probe &probe) {
-            return (probe.get_cumulative_imbalance_time() >= probe.compute_avg_lb_time());
-        });
-        simulate<N>(zlb, &mesh_data, &menon_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "ImprovedMenon");
-        Zoltan_Destroy(&zlb);
-    }
-
-    /** Experience Procassini **/
-    {
-        auto[zlb, mesh_data, probe, lbtime] = init_exp_expanding_sphere_zoltan<N>(simbox, params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, "(A* optimized):");
-
-        probe.push_load_balancing_time(lbtime);
+    for(auto& cfg : configs){
+        auto& [preamble, name, params, criterion] = cfg;
+        auto[zlb, mesh_data, probe, lbtime] = init_exp_expanding_sphere_zoltan<N>(simbox, params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, preamble);
+        probe.push_load_balancing_time(load_balancing_cost);
         probe.push_load_balancing_parallel_efficiency(1.0);
-        PolicyExecutor procassini_criterion_policy(&probe,
-                                                   [](Probe &probe) {
-                                                       Real epsilon_c = probe.get_efficiency();
-                                                       Real epsilon_lb= probe.compute_avg_lb_parallel_efficiency(); //estimation based on previous lb call
-                                                       Real S         = epsilon_c / epsilon_lb;
-                                                       Real tau_prime = probe.get_batch_time() *  S + probe.compute_avg_lb_time(); //estimation of next iteration time based on speed up + LB cost
-                                                       Real tau       = probe.get_batch_time();
-                                                       return (tau_prime < tau);
-                                                   });
-        simulate<N>(zlb, &mesh_data, &procassini_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "Procassini");
-        Zoltan_Destroy(&zlb);
-
-    }
-
-    /** Experience Marquez **/
-    {
-        auto[zlb, mesh_data, probe, lbtime] = init_exp_expanding_sphere_zoltan<N>(simbox, params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, "(A* optimized):");
-        PolicyExecutor marquez_criterion_policy(&probe,
-                                                [threshold=0.2](Probe &probe) {
-                                                    Real tolerance      = probe.get_avg_it() * threshold;
-                                                    Real tolerance_plus = probe.get_avg_it() + tolerance;
-                                                    Real tolerance_minus= probe.get_avg_it() - tolerance;
-                                                    return (probe.get_min_it() < tolerance_minus || tolerance_plus < probe.get_max_it());
-                                                });
-        simulate<N>(zlb, &mesh_data, &marquez_criterion_policy, fWrapper, &params, &probe, datatype, APP_COMM, "Marquez");
+        simulate<N>(zlb, &mesh_data, criterion, fWrapper, &params, &probe, datatype, APP_COMM, name);
     }
 
     MPI_Finalize();
