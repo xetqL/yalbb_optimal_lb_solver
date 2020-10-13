@@ -178,6 +178,7 @@ int main(int argc, char** argv) {
         configs.emplace_back("AstarReproduce\n", "AstarReproduce", params, lb::Reproduce{opt_scenario});
     }
 
+    configs.emplace_back("\nStatic", "Static", params, lb::Static{});
     configs.emplace_back("\nVanillaMenon", "VMenon", params, lb::VanillaMenon{});
     configs.emplace_back("\nImprovedMenon", "IMenon", params, lb::ImprovedMenon{});
     configs.emplace_back("\nProcassini 100", "Procassini_100p", params, lb::Procassini{1.0});
