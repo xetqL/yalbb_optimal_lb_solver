@@ -644,6 +644,19 @@ namespace vel {
             return vel;
         }
     };
+
+    template<int N, unsigned Axis>
+    struct GoToStripe {
+        static_assert(Axis < N);
+        const Real s;
+        const Real top;
+        constexpr std::array<Real, N> operator()(std::mt19937 &gen, const std::array<Real, N>& pos) {
+            std::array<Real, N> vel {};
+            vel.at(Axis) = s * std::max((Real) 0.0, top - pos.at(Axis));
+            return vel;
+        }
+    };
+
     template<int N>
     struct None {
         constexpr std::array<Real, N> operator()(std::mt19937 &gen, const std::array<Real, N>& pos) {

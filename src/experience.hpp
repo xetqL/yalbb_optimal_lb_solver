@@ -32,7 +32,8 @@ init_exp_uniform_cube_fixed_stripe_LB(
     auto zlb = new StripeLB<elements::Element<N>, N, N-1> (APP_COMM);
     auto mesh_data = generate_random_particles<N>(rank, params,
                                                   pos::UniformInCube<N>(simbox),
-                                                  vel::ParallelToAxis<N, N-1>( 2.0*params.T0*params.T0 ));
+                                                  //vel::ParallelToAxis<N, N-1>( 2.0*params.T0*params.T0 ));
+                                                  vel::GoToStripe<N, N-1>{params.T0 * params.T0, params.simsize - (params.simsize / (float) nproc)});
     PAR_START_TIMER(lbtime, APP_COMM);
     zlb->partition(mesh_data.els, getPos);
     migrate_data(zlb, mesh_data.els, pointAssign, datatype, APP_COMM);
