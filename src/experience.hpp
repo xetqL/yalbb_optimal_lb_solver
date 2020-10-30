@@ -14,6 +14,7 @@
 #include "StripeLB.hpp"
 #include "zoltan_fn.hpp"
 #include "initial_conditions.hpp"
+namespace experiment{
 template<int N>
 using ExperimentRet = std::tuple<MESH_DATA<elements::Element<N>>, Probe, double, std::string>;
 
@@ -27,6 +28,7 @@ using experiment_t = ExperimentRet<N> (*) (BalancerType* zlb,
                                                          GetPointFunc pointAssign,
                                                          DoPartition doPartition,
                                                          std::string preamble);
+namespace {
 
 std::pair<int, int> pre_init_experiment(const std::string& preamble, MPI_Comm APP_COMM){
     int rank, nproc;
@@ -44,8 +46,10 @@ ExperimentRet<N> post_init_experiment(const MESH_DATA<elements::Element<N>>& mes
     return std::make_tuple(mesh_data, probe, lbtime, func);
 }
 
+}
+
 template<int N, class BalancerType, class DoPartition, class GetPosFunc, class GetPointFunc>
-ExperimentRet<N> init_exp_uniform_cube(
+ExperimentRet<N> UniformCube(
         BalancerType* zlb,
         BoundingBox<N> simbox,
         sim_param_t params,
@@ -58,10 +62,8 @@ ExperimentRet<N> init_exp_uniform_cube(
     auto[rank, nproc] = pre_init_experiment(preamble, APP_COMM);
 
     // EXPERIMENTATION PART
-    //auto zlb = new StripeLB<elements::Element<N>, N, N-1> (APP_COMM);
     auto mesh_data = generate_random_particles<N>(rank, params,
                                                   pos::UniformInCube<N>(simbox),
-                                                  //vel::ParallelToAxis<N, N-1>( 2.0*params.T0*params.T0 ));
                                                   vel::GoToStripe<N, N-1>{params.T0 * params.T0, params.simsize - (params.simsize / (float) nproc)});
     PAR_START_TIMER(lbtime, APP_COMM);
     doPartition(zlb, &mesh_data, getPos);
@@ -73,7 +75,7 @@ ExperimentRet<N> init_exp_uniform_cube(
 }
 
 template<int N, class BalancerType, class DoPartition, class GetPosFunc, class GetPointFunc>
-ExperimentRet<N> init_exp_contracting_sphere_zoltan(
+ExperimentRet<N> ContractSphere(
         BalancerType* zlb,
         BoundingBox<N> simbox,
         sim_param_t params,
@@ -100,7 +102,7 @@ ExperimentRet<N> init_exp_contracting_sphere_zoltan(
 }
 
 template<int N, class BalancerType, class DoPartition, class GetPosFunc, class GetPointFunc>
-ExperimentRet<N> init_exp_expanding_sphere_zoltan(
+ExperimentRet<N> ExpandSphere(
         BalancerType* zlb,
         BoundingBox<N> simbox,
         sim_param_t params,
@@ -126,5 +128,5 @@ ExperimentRet<N> init_exp_expanding_sphere_zoltan(
 
     return post_init_experiment<N>(mesh_data, lbtime, std::string(__FUNCTION__), nproc, APP_COMM);
 }
-
+}
 #endif //YALBB_EXAMPLE_EXPERIENCE_HPP

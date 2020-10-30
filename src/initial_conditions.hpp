@@ -706,6 +706,7 @@ template<int N, class  PositionFunctor, class VelocityFunctor>
 MESH_DATA<elements::Element<N>> generate_random_particles(int rank, const sim_param_t& params, PositionFunctor rand_pos, VelocityFunctor rand_vel) {
     MESH_DATA<elements::Element<N>> mesh;
     if (!rank) {
+        mesh.els.reserve(params.npart);
         std::cout << "Generating data ..." << std::endl;
         std::mt19937 my_gen(params.seed);
         for(int i = 0;i < params.npart; ++i) {
@@ -714,7 +715,6 @@ MESH_DATA<elements::Element<N>> generate_random_particles(int rank, const sim_pa
         }
         std::cout << mesh.els.size() << " Done !" << std::endl;
     }
-
     return mesh;
 }
 

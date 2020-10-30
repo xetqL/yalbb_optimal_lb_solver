@@ -158,9 +158,9 @@ int main(int argc, char** argv) {
 
     using Particle     = elements::Element<N>;
     using LoadBalancer = StripeLB<Particle, N, N-1>;
-    using Experiment   = experiment_t<N, LoadBalancer, decltype(doPartition), decltype(getPositionPtrFunc), decltype(pointAssignFunc)>;
+    using Experiment   = experiment::experiment_t<N, LoadBalancer, decltype(doPartition), decltype(getPositionPtrFunc), decltype(pointAssignFunc)>;
 
-    Experiment initExperiment = init_exp_uniform_cube;
+    Experiment initExperiment = experiment::ContractSphere;
 
     FunctionWrapper fWrapper(getPositionPtrFunc, getVelocityPtrFunc, getForceFunc, boxIntersectFunc, pointAssignFunc, doLoadBalancingFunc);
 
@@ -188,7 +188,7 @@ int main(int argc, char** argv) {
                       [](auto* lb){ return allocate_from<Particle, N, N-1>(*lb);},
                       [](auto* lb){ destroy(lb);}, APP_COMM, "Astar");
         load_balancing_cost = solution_stats.compute_avg_lb_time();
-        configs.emplace_back("AstarReproduce\n", "AstarReproduce", params, lb::Reproduce{opt_scenario});
+        configs.emplace_back("AstarReproduce\n", "AstarReproduce",  params, lb::Reproduce{opt_scenario});
     }
 
     configs.emplace_back("Static",              "Static",           params, lb::Static{});
@@ -200,6 +200,7 @@ int main(int argc, char** argv) {
     configs.emplace_back("Periodic 50",         "Periodic_50",      params, lb::Periodic{50});
     // Menon-like criterion
     configs.emplace_back("VanillaMenon",        "VMenon",           params, lb::VanillaMenon{});
+    configs.emplace_back("OfflineMenon",        "OMenon",           params, lb::OfflineMenon{});
     configs.emplace_back("ImprovedMenon",       "IMenon",           params, lb::ImprovedMenon{});
     configs.emplace_back("PositivMenon",        "PMenon",           params, lb::ImprovedMenonNoMax{});
     configs.emplace_back("ZhaiMenon",           "ZMenon",           params, lb::ZhaiMenon{});
@@ -219,7 +220,7 @@ int main(int argc, char** argv) {
         auto& [preamble, config_name, params, criterion] = cfg;
         auto zlb = new LoadBalancer(APP_COMM);
         auto[mesh_data, probe, lbtime, exp_name] = initExperiment(zlb, simbox, params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, doPartition, preamble);
-        const auto simulation_name = exp_name.append("/").append(config_name);
+        const auto simulation_name = params.prefix.append("/").append(exp_name).append("/").append(config_name);
         probe.push_load_balancing_time(load_balancing_cost);
         probe.push_load_balancing_parallel_efficiency(1.0);
         simulate<N>(zlb, &mesh_data, criterion, fWrapper, &params, &probe, datatype, APP_COMM, simulation_name);
