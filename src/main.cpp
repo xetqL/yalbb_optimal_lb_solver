@@ -160,7 +160,7 @@ int main(int argc, char** argv) {
     using LoadBalancer = StripeLB<Particle, N, N-1>;
     using Experiment   = experiment::experiment_t<N, LoadBalancer, decltype(doPartition), decltype(getPositionPtrFunc), decltype(pointAssignFunc)>;
 
-    Experiment initExperiment = experiment::UniformCube;
+    Experiment initExperiment = experiment::ContractSphere;
 
     FunctionWrapper fWrapper(getPositionPtrFunc, getVelocityPtrFunc, getForceFunc, boxIntersectFunc, pointAssignFunc, doLoadBalancingFunc);
 
