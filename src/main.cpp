@@ -159,7 +159,7 @@ int main(int argc, char** argv) {
     using LoadBalancer = Zoltan_Struct;
     using Experiment   = experiment::experiment_t<N, LoadBalancer, decltype(doPartition), decltype(getPositionPtrFunc), decltype(pointAssignFunc)>;
 
-    Experiment initExperiment = experiment::ContractSphere;
+    Experiment initExperiment = experiment::ExpandSphere;
 
     FunctionWrapper fWrapper(getPositionPtrFunc, getVelocityPtrFunc, getForceFunc, boxIntersectFunc, pointAssignFunc, doLoadBalancingFunc);
 
