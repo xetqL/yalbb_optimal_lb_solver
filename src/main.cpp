@@ -184,6 +184,7 @@ int main(int argc, char** argv) {
     if(params.nb_best_path) {
         auto zlb = zoltan_create_wrapper(APP_COMM);
         auto[mesh_data, probe, lbtime, exp_name] = initExperiment(zlb, simbox, params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, doPartition, "A*\n");
+        const auto simulation_name = params.prefix.append("/").append(exp_name).append("/").append("Astar");
         std::tie(solution_stats,opt_scenario) = simulate_shortest_path<N>(zlb, &mesh_data,  fWrapper, &params, datatype,
                       [](auto* lb){ return Zoltan_Copy(lb);},
                       [](auto* lb){ Zoltan_Destroy(&lb);}, APP_COMM, "Astar");
