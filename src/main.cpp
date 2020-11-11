@@ -160,8 +160,8 @@ int main(int argc, char** argv) {
     using LoadBalancer = StripeLB<Particle, N, N-1>;
     using Experiment   = experiment::experiment_t<N, LoadBalancer, decltype(doPartition), decltype(getPositionPtrFunc), decltype(pointAssignFunc)>;
 
-    Experiment initExperiment = experiment::UniformCube;
-
+    Experiment initExperiment = experiment::ExpandSphere<N>;
+    Boundary<N> boundary = SphericalBoundary<N>{ box_center, params.simsize / 3.0f };
     FunctionWrapper fWrapper(getPositionPtrFunc, getVelocityPtrFunc, getForceFunc, boxIntersectFunc, pointAssignFunc, doLoadBalancingFunc);
 
     double load_balancing_cost = 0;
@@ -176,16 +176,17 @@ int main(int argc, char** argv) {
 
         auto zlb = new LoadBalancer(APP_COMM);
         auto[mesh_data, probe, lbtime, exp_name] = initExperiment(zlb, simbox, burn_params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, doPartition, "Burn CPU Cycle:");
-        simulate<N>(zlb, &mesh_data, lb::Static {}, fWrapper, &burn_params, &probe, datatype, APP_COMM, "BURN");
+        simulate<N>(zlb, &mesh_data, lb::Static {}, boundary, fWrapper, &burn_params, &probe, datatype, APP_COMM, "BURN");
     }
 
     std::vector<int> opt_scenario;
     Probe solution_stats(nproc);
-    if(params.nb_best_path) {
+    if(params.nb_best_path)
+    {
         auto zlb = new LoadBalancer(APP_COMM);
         auto[mesh_data, probe, lbtime, exp_name] = initExperiment(zlb, simbox, params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, doPartition, "A*\n");
         const auto simulation_name = params.prefix.append("/").append(exp_name).append("/").append("Astar");
-        std::tie(solution_stats,opt_scenario) = simulate_shortest_path<N>(zlb, &mesh_data,  fWrapper, &params, datatype,
+        std::tie(solution_stats,opt_scenario) = simulate_shortest_path<N>(zlb, &mesh_data, boundary, fWrapper, &params, datatype,
                       [](auto* lb){ return allocate_from<Particle, N, N-1>(*lb);},
                       [](auto* lb){ destroy(lb);}, APP_COMM, "Astar");
         load_balancing_cost = solution_stats.compute_avg_lb_time();
@@ -224,7 +225,7 @@ int main(int argc, char** argv) {
         const auto simulation_name = params.prefix.append("/").append(exp_name).append("/").append(config_name);
         probe.push_load_balancing_time(load_balancing_cost);
         probe.push_load_balancing_parallel_efficiency(1.0);
-        simulate<N>(zlb, &mesh_data, criterion, fWrapper, &params, &probe, datatype, APP_COMM, simulation_name);
+        simulate<N>(zlb, &mesh_data, criterion, boundary, fWrapper, &params, &probe, datatype, APP_COMM, simulation_name);
         destroy(zlb);
     }
 

@@ -69,6 +69,7 @@ ExperimentRet<N> UniformCube(
     doPartition(zlb, &mesh_data, getPos);
     migrate_data(zlb, mesh_data.els, pointAssign, datatype, APP_COMM);
     END_TIMER(lbtime);
+
     // END
 
     return post_init_experiment<N>(mesh_data, lbtime, std::string(__FUNCTION__), nproc, APP_COMM);
