@@ -19,8 +19,8 @@ namespace elements {
 
     using Real = Real;
     using Index = Integer;
-    template<int N>
-    struct Element {
+    template<int N> struct Element {
+        static const auto dimension = N;
 
         Index gid;
         Index lid;
@@ -156,6 +156,7 @@ namespace elements {
         }
 
     };
+
 
     template<int N>
     void import_from_file_float(std::string filename, std::vector<Element<N>>& particles) {

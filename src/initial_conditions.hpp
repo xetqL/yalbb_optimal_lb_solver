@@ -593,7 +593,7 @@ namespace vel {
         }
 
         std::array<Real, N> operator()(std::mt19937 &gen, const std::array<Real, N>& pos) {
-            auto strength = uniform(gen);
+            auto strength = 1.0;//uniform(gen);
             std::array<Real, N> vec;
             for(int i = 0; i < N; ++i) vec[i] = pos[i] - expand_from[i];
             Real length = std::sqrt(std::accumulate(vec.begin(), vec.end(), (Real) 0.0, [](auto p, auto v){return p + v*v;}));

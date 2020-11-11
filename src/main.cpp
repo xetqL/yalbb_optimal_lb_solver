@@ -12,7 +12,7 @@
 #include <search.h>
 
 #include "initial_conditions.hpp"
-#include "zoltan_fn.hpp"
+#include "loadbalancing.hpp"
 #include "spatial_elements.hpp"
 #include "utils.hpp"
 #include "experience.hpp"
@@ -100,66 +100,37 @@ int main(int argc, char** argv) {
     // Data getter function (position and velocity) *required*
     auto getPositionPtrFunc = [](auto* e) -> std::array<Real, N>* { return &e->position; };
     auto getVelocityPtrFunc = [](auto* e) -> std::array<Real, N>* { return &e->velocity; };
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /////////////////////////////////////FINISHED PARITCLE INITIALIZATION///////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // Domain-box intersection function *required*
-    // Solve interactions
-    auto boxIntersectFunc   = [rank, rc=params.rc](auto* zlb, double x1, double y1, double z1, double x2, double y2, double z2, int* PEs, int* num_found){
-        Zoltan_LB_Box_Assign(zlb, x1, y1, z1, x2, y2, z2, PEs, num_found);
-    };
-
-    // Point-in-domain callback *required*
-    // Solve belongings
-    auto pointAssignFunc    = [](auto* zlb, const auto* e, int* PE) {
-        auto pos_in_double = get_as_double_array<N>(e->position);
-        Zoltan_LB_Point_Assign(zlb, &pos_in_double.front(), PE);
-    };
-
-    // Partitioning + migration function *required*
-    // Solve partitioning
-    auto doLoadBalancingFunc = [rc = params.rc, getPositionPtrFunc, boxIntersectFunc, datatype, APP_COMM](auto* zlb, MESH_DATA<elements::Element<N>>* mesh_data) {
-        // Get mesh from LB struct
-        // ...
-
-        // Update mesh weights using particles
-        // ...
-        std::vector<elements::Element<N>> sampled;
-
-        for(int i = 0; i < 5; ++i)
-            std::copy(mesh_data->els.begin(), mesh_data->els.end(), std::back_inserter(sampled));
-
-        MESH_DATA<elements::Element<N>> interactions;
-
-        auto bbox      = get_bounding_box<N>(rc, getPositionPtrFunc, sampled);
-        auto remote_el = retrieve_ghosts<N>(zlb, sampled, bbox, boxIntersectFunc, rc, datatype, APP_COMM);
-        std::vector<Index> lscl, head;
-        const auto nlocal  = sampled.size();
-        apply_resize_strategy(&lscl,   nlocal + remote_el.size() );
-
-        CLL_init<N, elements::Element<N>>({{sampled.data(), nlocal}, {remote_el.data(), remote_el.size()}}, getPositionPtrFunc, bbox, rc, &head, &lscl);
-
-        CLL_foreach_interaction(sampled.data(), nlocal, remote_el.data(), getPositionPtrFunc, bbox, rc, &head, &lscl,
-                                [&interactions](const auto *r, const auto *s) {
-                                    interactions.els.push_back(midpoint<N>(*r, *s));
-                                });
-        Zoltan_Do_LB(&interactions, zlb);
-    };
-
     // Short range force function computation
     auto getForceFunc = [eps=params.eps_lj, sig=params.sig_lj, rc=params.rc, getPositionPtrFunc](const auto* receiver, const auto* source)->std::array<Real, N>{
         return lj_compute_force<N>(receiver, source, eps, sig*sig, rc, getPositionPtrFunc);
     };
 
-    auto doPartition = [](auto* zlb, auto* mesh_data, auto getPos){
-        Zoltan_Do_LB(mesh_data, zlb);
-    };
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /////////////////////////////////////FINISHED PARITCLE INITIALIZATION///////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    using LoadBalancer       = Zoltan_Struct;
+    using DoLoadBalancing    = lb::DoLB<LoadBalancer, decltype(getPositionPtrFunc)>;
+    // Domain-box intersection function *required*
+    // Solve interactions
+    auto boxIntersectFunc    = lb::IntersectDomain<LoadBalancer> {params.rc};
+    // Point-in-domain callback *required*
+    // Solve belongings
+    auto pointAssignFunc     = lb::AssignPoint<LoadBalancer> {};
 
-    using Particle     = elements::Element<N>;
-    using LoadBalancer = Zoltan_Struct;
-    using Experiment   = experiment::experiment_t<N, LoadBalancer, decltype(doPartition), decltype(getPositionPtrFunc), decltype(pointAssignFunc)>;
+    auto doPartition         = lb::DoPartition<LoadBalancer> {};
+    // Partitioning + migration function *required*
+    // Solve partitioning
+    auto doLoadBalancingFunc = DoLoadBalancing(params.rc, datatype, APP_COMM, getPositionPtrFunc);
 
-    Experiment initExperiment = experiment::ContractSphere;
+    auto destroyLB          = lb::Destroyer<LoadBalancer>{};
+    auto createLB           = lb::Creator<LoadBalancer>{};
+    using Particle           = elements::Element<N>;
+
+    using Experiment         = experiment::experiment_t<N, LoadBalancer, decltype(doPartition), decltype(getPositionPtrFunc), decltype(pointAssignFunc)>;
+
+    Experiment initExperiment = experiment::ExpandSphere;
+
+    Boundary<N> boundary = SphericalBoundary<N>{box_center, params.simsize / 4.0f};
 
     FunctionWrapper fWrapper(getPositionPtrFunc, getVelocityPtrFunc, getForceFunc, boxIntersectFunc, pointAssignFunc, doLoadBalancingFunc);
 
@@ -173,21 +144,21 @@ int main(int argc, char** argv) {
         MPI_Comm APP_COMM;
         MPI_Comm_dup(MPI_COMM_WORLD, &APP_COMM);
 
-        auto zlb = zoltan_create_wrapper(APP_COMM);
+        auto zlb = createLB(APP_COMM);
         auto[mesh_data, probe, lbtime, exp_name] = initExperiment(zlb, simbox, burn_params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, doPartition, "Burn CPU Cycle:");
-        simulate<N>(zlb, &mesh_data, lb::Static {}, fWrapper, &burn_params, &probe, datatype, APP_COMM, "BURN");
-        Zoltan_Destroy(&zlb);
+        simulate<N>(zlb, &mesh_data, lb::Static {}, boundary, fWrapper, &burn_params, &probe, datatype, APP_COMM, "BURN");
+        destroyLB(zlb);
     }
 
     std::vector<int> opt_scenario;
     Probe solution_stats(nproc);
     if(params.nb_best_path) {
-        auto zlb = zoltan_create_wrapper(APP_COMM);
+        auto zlb = createLB(APP_COMM);
         auto[mesh_data, probe, lbtime, exp_name] = initExperiment(zlb, simbox, params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, doPartition, "A*\n");
         const auto simulation_name = params.prefix.append("/").append(exp_name).append("/").append("Astar");
-        std::tie(solution_stats,opt_scenario) = simulate_shortest_path<N>(zlb, &mesh_data,  fWrapper, &params, datatype,
-                      [](auto* lb){ return Zoltan_Copy(lb);},
-                      [](auto* lb){ Zoltan_Destroy(&lb);}, APP_COMM, "Astar");
+        std::tie(solution_stats,opt_scenario) = simulate_shortest_path<N>(zlb, &mesh_data, boundary, fWrapper, &params, datatype,
+                      lb::Copier<LoadBalancer>{},
+                      lb::Destroyer<LoadBalancer>{}, APP_COMM, "Astar");
         load_balancing_cost = solution_stats.compute_avg_lb_time();
         configs.emplace_back("AstarReproduce\n", "AstarReproduce",  params, lb::Reproduce{opt_scenario});
     }
@@ -219,13 +190,13 @@ int main(int argc, char** argv) {
 
     for(auto& cfg : configs){
         auto& [preamble, config_name, params, criterion] = cfg;
-        auto zlb = zoltan_create_wrapper(APP_COMM);
+        auto zlb = createLB(APP_COMM);
         auto[mesh_data, probe, lbtime, exp_name] = initExperiment(zlb, simbox, params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, doPartition, preamble);
         const auto simulation_name = params.prefix.append("/").append(exp_name).append("/").append(config_name);
         probe.push_load_balancing_time(load_balancing_cost);
         probe.push_load_balancing_parallel_efficiency(1.0);
-        simulate<N>(zlb, &mesh_data, criterion, fWrapper, &params, &probe, datatype, APP_COMM, simulation_name);
-        Zoltan_Destroy(&zlb);
+        simulate<N>(zlb, &mesh_data, criterion, boundary, fWrapper, &params, &probe, datatype, APP_COMM, simulation_name);
+        destroyLB(zlb);
     }
 
     MPI_Finalize();

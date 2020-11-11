@@ -32,7 +32,7 @@ find_path(ZOLTAN_INCLUDE_DIRECTORY NAMES zoltan.h HINTS ${ZOLTAN_INSTALL_FOLDER}
 # Build
 set(BINARY_NAME "yalbb_lbopt")
 
-add_executable(${BINARY_NAME} src/main.cpp ${SRC} ${HEADERS})
+add_executable(${BINARY_NAME} src/main.cpp ${SRC} ${HEADERS} src/loadbalancing.hpp)
 target_include_directories(${BINARY_NAME} PRIVATE ${MPI_C_INCLUDE_PATH} ${YALBB_INCLUDE_DIRECTORY} ${ZOLTAN_INCLUDE_DIRECTORY} useful-algorithms/include)
 target_link_libraries(${BINARY_NAME} PRIVATE ${MPI_C_LIBRARY} ${ZOLTAN_LIBRARY_PATH}  ${YALBB_LIBRARY_PATH} stdc++fs ${ZOLTAN_LIBRARY_PATH} ${CMAKE_THREAD_LIBS_INIT})
 
