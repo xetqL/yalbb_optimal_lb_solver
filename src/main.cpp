@@ -41,9 +41,7 @@ MESH_DATA<elements::Element<N>> generate_random_particles_with_rejection(int ran
 
     return mesh;
 }
-constexpr unsigned NumConfig = 5;
 using Config = std::tuple<std::string, std::string, sim_param_t, lb::Criterion>;
-#define __STR_FUNCNAME__(x) std::string(#x)
 
 int main(int argc, char** argv) {
     constexpr int N = 3;
@@ -124,13 +122,13 @@ int main(int argc, char** argv) {
 
     auto destroyLB          = lb::Destroyer<LoadBalancer>{};
     auto createLB           = lb::Creator<LoadBalancer>{};
-    using Particle           = elements::Element<N>;
+    using Particle          = elements::Element<N>;
 
     using Experiment         = experiment::experiment_t<N, LoadBalancer, decltype(doPartition), decltype(getPositionPtrFunc), decltype(pointAssignFunc)>;
 
     Experiment initExperiment = experiment::ExpandSphere;
 
-    Boundary<N> boundary = SphericalBoundary<N>{box_center, params.simsize / 4.0f};
+    Boundary<N> boundary      = CubicalBoundary<N>{simbox, params.bounce}; //SphericalBoundary<N>{box_center, params.simsize / 4.0f};
 
     FunctionWrapper fWrapper(getPositionPtrFunc, getVelocityPtrFunc, getForceFunc, boxIntersectFunc, pointAssignFunc, doLoadBalancingFunc);
 

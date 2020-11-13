@@ -582,6 +582,7 @@ class ParticleWallRandomElementsGenerator : public RandomElementsGenerator<N> {
 
 } // end of namespace initial_condition
 namespace vel {
+
     template<int N>
     struct ExpandFromPoint {
         std::array<Real, N> expand_from;
@@ -593,18 +594,10 @@ namespace vel {
         }
 
         std::array<Real, N> operator()(std::mt19937 &gen, const std::array<Real, N>& pos) {
-            auto strength = 1.0;//uniform(gen);
-            std::array<Real, N> vec;
-            for(int i = 0; i < N; ++i) vec[i] = pos[i] - expand_from[i];
-            Real length = std::sqrt(std::accumulate(vec.begin(), vec.end(), (Real) 0.0, [](auto p, auto v){return p + v*v;}));
-            if constexpr (N==3)
-                return {
-                        ((vec[0] / length)) * strength,
-                        ((vec[1] / length)) * strength,
-                        ((vec[2] / length)) * strength
-                };
-            else
-                return { 0.0f, 0.0f };
+            using namespace vec::generic;
+            const auto strength = 1.0;
+            const auto vec = pos - expand_from;
+            return normalize(vec);
         }
     };
     template<int N>
@@ -616,20 +609,10 @@ namespace vel {
                 temp(temp), uniform(0.0, 2.0*temp*temp), expand_from(std::move(expand_from)) {}
 
         std::array<Real, N> operator()(std::mt19937 &gen, const std::array<Real, N>& pos) {
+            using namespace vec::generic;
             Real strength = uniform(gen);
-            std::array<Real, N> vec;
-            for(int i = 0; i < N; ++i) {
-                vec[i] = expand_from[i] - pos[i];
-            }
-            Real length = std::sqrt(std::accumulate(vec.begin(), vec.end(), (Real) 0.0, [](auto p, auto v){return p + v*v;}));
-            if constexpr (N==3)
-                return {
-                        ((vec[0] / length)) * strength,
-                        ((vec[1] / length)) * strength,
-                        ((vec[2] / length)) * strength
-                };
-            else
-                return { 0.0f, 0.0f };
+            std::array<Real, N> vec = expand_from - pos;
+            return normalize(vec) * strength;
         }
     };
 
