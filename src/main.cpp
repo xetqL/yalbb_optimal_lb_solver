@@ -125,7 +125,7 @@ int main(int argc, char** argv) {
     auto createLB            = lb::Creator<LoadBalancer>{};
     using Particle           = elements::Element<N>;
     using Experiment         = experiment::experiment_t<N, LoadBalancer, decltype(doPartition), decltype(getPositionPtrFunc), decltype(pointAssignFunc)>;
-    Experiment initExperiment= experiment::ExpandSphere;
+    Experiment initExperiment= experiment::ContractSphere;
     Boundary<N> boundary     = CubicalBoundary<N>{simbox, params.bounce};
     FunctionWrapper fWrapper(getPositionPtrFunc, getVelocityPtrFunc, getForceFunc, boxIntersectFunc, pointAssignFunc, doLoadBalancingFunc);
 
