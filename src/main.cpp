@@ -126,7 +126,7 @@ int main(int argc, char** argv) {
     using Particle           = elements::Element<N>;
     using Experiment         = experiment::experiment_t<N, LoadBalancer, decltype(doPartition), decltype(getPositionPtrFunc), decltype(pointAssignFunc)>;
     Experiment initExperiment= experiment::ExpandSphere;
-    Boundary<N> boundary     = SphericalBoundary<N>{box_center, params.simsize / 4.0f};
+    Boundary<N> boundary     = CubicalBoundary<N>{simbox, params.bounce};
     FunctionWrapper fWrapper(getPositionPtrFunc, getVelocityPtrFunc, getForceFunc, boxIntersectFunc, pointAssignFunc, doLoadBalancingFunc);
 
     double load_balancing_cost = 0;
