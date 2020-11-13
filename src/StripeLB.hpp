@@ -14,8 +14,9 @@
 #include <algorithm>
 #include <vector>
 #include <numeric>
-
 struct StripeLB {
+
+    static const size_t CUT_ALONG = 2;
 
     using Stripe = std::pair<Real, Real>;
 
@@ -28,18 +29,17 @@ struct StripeLB {
         const auto&[beg_a, end_a] = a;
         return beg_a <= v && v < end_a;
     }
-    size_t cutDim;
     MPI_Comm comm;
     int rank {}, world_size {};
     std::vector<Stripe> stripes;
 
-    StripeLB(size_t cutDim, MPI_Comm comm) : cutDim(cutDim), comm(comm) {
+    StripeLB(MPI_Comm comm) : comm(comm) {
         MPI_Comm_size(comm, &world_size);
         MPI_Comm_rank(comm, &rank);
         stripes = std::vector<Stripe>(world_size);
     }
 
-    template<class T, class GetPositionFunc>
+    template<size_t cutDim, class T, class GetPositionFunc>
     void partition(std::vector<T>& elements, GetPositionFunc getPosition) {
         Real prev = std::numeric_limits<Real>::lowest(), next;
         Real n = elements.size(), total_n;
@@ -48,15 +48,15 @@ struct StripeLB {
         int pe;
 
         for(pe = 1; pe < (world_size); ++pe) {
-            next = par::find_nth(elements.begin(), elements.end(), pe * avg_n, comm, [cutDim = this->cutDim, getPosition](auto v){return getPosition(&v)->at(cutDim);});
+            next = par::find_nth(elements.begin(), elements.end(), pe * avg_n, comm, [getPosition](auto v){return getPosition(&v)->at(cutDim);});
             stripes.at(pe-1) = {prev, next};
             prev = next;
         }
         stripes.at(pe-1) = {prev, std::numeric_limits<Real>::max()};
     }
-    template<size_t N>
+    template<size_t N, size_t cutDim>
     void lookup_domain(const Real* pptr, int* PE) const {
-
+        static_assert(N > cutDim);
         std::vector<Real> point(pptr, pptr+N);
         for(*PE = 0; (*PE) < world_size ; (*PE)++) {
             if(is_inside(point.at(cutDim), stripes.at(*PE))) return;
@@ -67,6 +67,7 @@ struct StripeLB {
             throw std::logic_error("An element must belong to someone ! at");
         }
     }
+
     [[nodiscard]] std::vector<int> get_neighbors(int PE, Real min_distance) const {
         std::vector<int> neighbors; neighbors.reserve(world_size);
         for(int neighbor_rank = 0; neighbor_rank < world_size; ++neighbor_rank){
@@ -78,16 +79,16 @@ struct StripeLB {
 
     friend StripeLB* allocate_from(StripeLB& t);
 };
-
 StripeLB* allocate_from(StripeLB& t) {
-    auto* ptr = new StripeLB(t.cutDim, t.comm);
+    auto* ptr = new StripeLB(t.comm);
     std::copy(t.stripes.begin(), t.stripes.end(), ptr->stripes.begin());
     ptr->rank = t.rank;
     ptr->world_size = t.world_size;
     return ptr;
 }
+
 StripeLB* allocate_from(StripeLB* t) {
-    auto* ptr = new StripeLB(t->cutDim, t->comm);
+    auto* ptr = new StripeLB(t->comm);
     std::copy(t->stripes.begin(), t->stripes.end(), ptr->stripes.begin());
     ptr->rank = t->rank;
     ptr->world_size = t->world_size;

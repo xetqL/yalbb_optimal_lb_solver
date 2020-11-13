@@ -107,6 +107,7 @@ int main(int argc, char** argv) {
     /////////////////////////////////////FINISHED PARITCLE INITIALIZATION///////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     using LoadBalancer       = Zoltan_Struct;
+
     using DoLoadBalancing    = lb::DoLB<LoadBalancer, decltype(getPositionPtrFunc)>;
     // Domain-box intersection function *required*
     // Solve interactions
@@ -120,16 +121,12 @@ int main(int argc, char** argv) {
     // Solve partitioning
     auto doLoadBalancingFunc = DoLoadBalancing(params.rc, datatype, APP_COMM, getPositionPtrFunc);
 
-    auto destroyLB          = lb::Destroyer<LoadBalancer>{};
-    auto createLB           = lb::Creator<LoadBalancer>{};
-    using Particle          = elements::Element<N>;
-
+    auto destroyLB           = lb::Destroyer<LoadBalancer>{};
+    auto createLB            = lb::Creator<LoadBalancer>{};
+    using Particle           = elements::Element<N>;
     using Experiment         = experiment::experiment_t<N, LoadBalancer, decltype(doPartition), decltype(getPositionPtrFunc), decltype(pointAssignFunc)>;
-
-    Experiment initExperiment = experiment::ExpandSphere;
-
-    Boundary<N> boundary      = CubicalBoundary<N>{simbox, params.bounce}; //SphericalBoundary<N>{box_center, params.simsize / 4.0f};
-
+    Experiment initExperiment= experiment::ExpandSphere;
+    Boundary<N> boundary     = SphericalBoundary<N>{box_center, params.simsize / 4.0f};
     FunctionWrapper fWrapper(getPositionPtrFunc, getVelocityPtrFunc, getForceFunc, boxIntersectFunc, pointAssignFunc, doLoadBalancingFunc);
 
     double load_balancing_cost = 0;

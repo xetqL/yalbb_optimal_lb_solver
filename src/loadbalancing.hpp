@@ -8,14 +8,17 @@
 #include "zoltan_fn.hpp"
 #include "StripeLB.hpp"
 namespace lb {
+
     // DoPartition functor
     template<class T=void> struct DoPartition {};
+
     template<> struct DoPartition<StripeLB> {
-        template<class LB, class MD, class GetPosPtrF>
+        template<class MD, class GetPosPtrF>
         void operator() (StripeLB* lb, MD* md, GetPosPtrF getPositionPtrFunc) {
-            lb->partition(md->els, getPositionPtrFunc);
+            lb->partition<StripeLB::CUT_ALONG>(md->els, getPositionPtrFunc);
         }
     };
+
     template<> struct DoPartition<Zoltan_Struct> {
         template<class MD, class GetPosPtrF>
         void operator() (Zoltan_Struct* lb, MD* md, GetPosPtrF getPositionPtrFunc) {
@@ -44,7 +47,7 @@ namespace lb {
     template<> struct AssignPoint<StripeLB> {
         template<class El>
         void operator() (StripeLB* zlb, const El* e, int* PE) {
-            zlb->lookup_domain<El::dimension>(e->position, PE);
+            zlb->lookup_domain<El::dimension, StripeLB::CUT_ALONG>(e->position.data(), PE);
         }
     };
     template<> struct AssignPoint<Zoltan_Struct> {
