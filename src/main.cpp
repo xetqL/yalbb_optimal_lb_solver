@@ -17,30 +17,16 @@
 #include "utils.hpp"
 #include "experience.hpp"
 #include "../../yalbb/includes/yalbb/policy.hpp"
-
-template<int N>
-MESH_DATA<elements::Element<N>> generate_random_particles_with_rejection(int rank, sim_param_t params) {
-    MESH_DATA<elements::Element<N>> mesh;
-
-    if (!rank) {
-        std::cout << "Generating data ..." << std::endl;
-        std::shared_ptr<initial_condition::lj::RejectionCondition<N>> condition;
-        const int MAX_TRIAL = 1000000;
-        condition = std::make_shared<initial_condition::lj::RejectionCondition<N>>(
-                &(mesh.els), params.sig_lj, (params.sig_lj * params.sig_lj), params.T0, 0, 0, 0,
-                params.simsize, params.simsize, params.simsize, &params
-        );
-        statistic::UniformSphericalDistribution<N, Real> sphere(params.simsize / 3.0, params.simsize / 2.0, params.simsize / 2.0, 2.0 * params.simsize / 3.0);
-        std::uniform_real_distribution<Real> udist(0, 2.0*params.T0*params.T0);
-        initial_condition::lj::RandomElementsGen<N>(params.seed, MAX_TRIAL, condition)
-                .generate_elements(mesh.els, params.npart,
-                        [&sphere](auto& my_gen) -> std::array<Real, N> { return sphere(my_gen); },
-                        [&udist] (auto& my_gen) -> std::array<Real, N> { return {udist(my_gen), udist(my_gen), udist(my_gen)};});
-        std::cout << mesh.els.size() << " Done !" << std::endl;
-    }
-
-    return mesh;
+template<typename ... Args>
+std::string fmt( const std::string& format, Args ... args )
+{
+    size_t size = snprintf( nullptr, 0, format.c_str(), args ... ) + 1; // Extra space for '\0'
+    if( size <= 0 ){ throw std::runtime_error( "Error during formatting." ); }
+    std::unique_ptr<char[]> buf( new char[ size ] );
+    snprintf( buf.get(), size, format.c_str(), args ... );
+    return std::string( buf.get(), buf.get() + size - 1 ); // We don't want the '\0' inside
 }
+
 using Config = std::tuple<std::string, std::string, sim_param_t, lb::Criterion>;
 
 int main(int argc, char** argv) {
@@ -150,10 +136,10 @@ int main(int argc, char** argv) {
     if(params.nb_best_path) {
         auto zlb = createLB(APP_COMM);
         auto[mesh_data, probe, lbtime, exp_name] = initExperiment(zlb, simbox, params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, doPartition, "A*\n");
-        const auto simulation_name = params.prefix.append("/").append(exp_name).append("/").append("Astar");
+        const auto simulation_name = params.prefix + "/" + exp_name + "/Astar";
         std::tie(solution_stats,opt_scenario) = simulate_shortest_path<N>(zlb, &mesh_data, boundary, fWrapper, &params, datatype,
                       lb::Copier<LoadBalancer>{},
-                      lb::Destroyer<LoadBalancer>{}, APP_COMM, "Astar");
+                      lb::Destroyer<LoadBalancer>{}, APP_COMM, simulation_name);
         load_balancing_cost = solution_stats.compute_avg_lb_time();
         configs.emplace_back("AstarReproduce\n", "AstarReproduce",  params, lb::Reproduce{opt_scenario});
     }
@@ -187,7 +173,7 @@ int main(int argc, char** argv) {
         auto& [preamble, config_name, params, criterion] = cfg;
         auto zlb = createLB(APP_COMM);
         auto[mesh_data, probe, lbtime, exp_name] = initExperiment(zlb, simbox, params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, doPartition, preamble);
-        const auto simulation_name = params.prefix.append("/").append(exp_name).append("/").append(config_name);
+        const std::string simulation_name = params.prefix + "/" + exp_name + "/" + config_name;
         probe.push_load_balancing_time(load_balancing_cost);
         probe.push_load_balancing_parallel_efficiency(1.0);
         simulate<N>(zlb, &mesh_data, criterion, boundary, fWrapper, &params, &probe, datatype, APP_COMM, simulation_name);
