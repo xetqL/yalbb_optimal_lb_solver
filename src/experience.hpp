@@ -128,5 +128,33 @@ ExperimentRet<N> ExpandSphere(
 
     return post_init_experiment<N>(mesh_data, lbtime, std::string(__FUNCTION__), nproc, APP_COMM);
 }
+
+template<int N, class BalancerType, class DoPartition, class GetPosFunc, class GetPointFunc>
+ExperimentRet<N> Expand2DSphere(
+        BalancerType* zlb,
+        BoundingBox<N> simbox,
+        sim_param_t params,
+        MPI_Datatype datatype,
+        MPI_Comm APP_COMM,
+        GetPosFunc getPos,
+        GetPointFunc pointAssign,
+        DoPartition doPartition,
+        std::string preamble = "")
+{
+    auto[rank, nproc] = pre_init_experiment(preamble, APP_COMM);
+
+    //auto zlb = zoltan_create_wrapper(APP_COMM);
+    std::array<Real, N> box_center{};
+    std::fill(box_center.begin(), box_center.end(), params.simsize / 2.0);
+    auto mesh_data = generate_random_particles<N>(rank, params,
+                                                  pos::UniformOnSphere<N>(params.simsize / 20.0, box_center),
+                                                  vel::ExpandFromPoint<N>(params.T0, box_center));
+    PAR_START_TIMER(lbtime, APP_COMM);
+    doPartition(zlb, &mesh_data, getPos);
+    migrate_data(zlb, mesh_data.els, pointAssign, datatype, APP_COMM);
+    END_TIMER(lbtime);
+
+    return post_init_experiment<N>(mesh_data, lbtime, std::string(__FUNCTION__), nproc, APP_COMM);
+}
 }
 #endif //YALBB_EXAMPLE_EXPERIENCE_HPP

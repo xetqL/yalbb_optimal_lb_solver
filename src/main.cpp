@@ -111,8 +111,8 @@ int main(int argc, char** argv) {
     auto createLB            = lb::Creator<LoadBalancer>{};
     using Particle           = elements::Element<N>;
     using Experiment         = experiment::experiment_t<N, LoadBalancer, decltype(doPartition), decltype(getPositionPtrFunc), decltype(pointAssignFunc)>;
-    Experiment initExperiment= experiment::ExpandSphere;
-    Boundary<N> boundary     = SphericalBoundary<N>{box_center, params.simsize / 4.0f};
+    Experiment initExperiment= experiment::Expand2DSphere;
+    Boundary<N> boundary     = SphericalBoundary<N>{box_center, params.simsize / 10.0f};
     FunctionWrapper fWrapper(getPositionPtrFunc, getVelocityPtrFunc, getForceFunc, boxIntersectFunc, pointAssignFunc, doLoadBalancingFunc);
 
     double load_balancing_cost = 0;
