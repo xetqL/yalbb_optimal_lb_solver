@@ -15,6 +15,36 @@
 #include "zoltan_fn.hpp"
 #include "initial_conditions.hpp"
 namespace experiment{
+using Config = std::tuple<std::string, std::string, sim_param_t, lb::Criterion>;
+void load_configs(std::vector<Config>& configs, sim_param_t params){
+
+    configs.emplace_back("Static",              "Static",           params, lb::Static{});
+    // Periodic
+    configs.emplace_back("Periodic 1000",       "Periodic_1000",    params, lb::Periodic{1000});
+    configs.emplace_back("Periodic 500",        "Periodic_500",     params, lb::Periodic{500});
+    configs.emplace_back("Periodic 250",        "Periodic_250",     params, lb::Periodic{250});
+    configs.emplace_back("Periodic 100",        "Periodic_100",     params, lb::Periodic{100});
+    configs.emplace_back("Periodic 50",         "Periodic_50",      params, lb::Periodic{50});
+    configs.emplace_back("Periodic 25",         "Periodic_25",      params, lb::Periodic{25});
+    // Menon-like criterion
+    configs.emplace_back("VanillaMenon",        "VMenon",           params, lb::VanillaMenon{});
+    configs.emplace_back("OfflineMenon",        "OMenon",           params, lb::OfflineMenon{});
+    configs.emplace_back("ImprovedMenon",       "IMenon",           params, lb::ImprovedMenon{});
+    configs.emplace_back("PositivMenon",        "PMenon",           params, lb::ImprovedMenonNoMax{});
+    configs.emplace_back("ZhaiMenon",           "ZMenon",           params, lb::ZhaiMenon{});
+    // Procassini
+    configs.emplace_back("Procassini 145",      "Procassini_145p",  params, lb::Procassini{1.45});
+    configs.emplace_back("Procassini 120",      "Procassini_120p",  params, lb::Procassini{1.20});
+    configs.emplace_back("Procassini 115",      "Procassini_115p",  params, lb::Procassini{1.15});
+    configs.emplace_back("Procassini 100",      "Procassini_100p",  params, lb::Procassini{1.00});
+    configs.emplace_back("Procassini 90",       "Procassini_90p",   params, lb::Procassini{0.95});
+    // Marquez
+    configs.emplace_back("Marquez 145",         "Marquez_145",      params, lb::Marquez{1.45});
+    configs.emplace_back("Marquez 125",         "Marquez_125",      params, lb::Marquez{1.25});
+    configs.emplace_back("Marquez 85",          "Marquez_85",       params, lb::Marquez{0.85});
+    configs.emplace_back("Marquez 65",          "Marquez_65",       params, lb::Marquez{0.65});
+}
+
 template<int N>
 using ExperimentRet = std::tuple<MESH_DATA<elements::Element<N>>, Probe, double, std::string>;
 
