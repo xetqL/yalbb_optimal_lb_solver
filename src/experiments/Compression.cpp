@@ -10,7 +10,9 @@ int main(int argc, char** argv) {
 
     Boundary<N> boundary = CubicalBoundary<N>{simbox, params.bounce};
 
-    run<N, LoadBalancer>(argc, argv, experiment::ContractSphere{}, boundary);
+    auto unaryForceFunc = [params](const auto& element, auto fbegin) {};
+
+    run<N, LoadBalancer>(argc, argv, experiment::ContractSphere{}, boundary, unaryForceFunc);
 
     return 0;
 }

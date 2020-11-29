@@ -9,8 +9,9 @@ int main(int argc, char** argv) {
     const std::array<Real, 2*N> simbox = {0, params.simsize, 0,params.simsize, 0,params.simsize};
 
     Boundary<N> boundary     = CubicalBoundary<N>{simbox, params.bounce};
+    auto unaryForceFunc = [params](const auto& element, auto fbegin) {};
 
-    run<N, LoadBalancer>(argc, argv, experiment::UniformCube{}, boundary);
+    run<N, LoadBalancer>(argc, argv, experiment::UniformCube{}, boundary, unaryForceFunc);
 
     return 0;
 }

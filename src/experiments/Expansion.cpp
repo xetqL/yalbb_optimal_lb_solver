@@ -1,4 +1,5 @@
 #include "run.hpp"
+#include <yalbb/boundary.hpp>
 int main(int argc, char** argv) {
     constexpr unsigned N = 3;
     using LoadBalancer = Zoltan_Struct;
@@ -8,9 +9,15 @@ int main(int argc, char** argv) {
     auto params = option.value();
     const std::array<Real, 2*N> simbox = {0, params.simsize, 0,params.simsize, 0,params.simsize};
 
-    Boundary<N> boundary = CubicalBoundary<N>{simbox, params.bounce};
+    std::cout << simbox << std::endl;
 
-    run<N, LoadBalancer>(argc, argv, experiment::ExpandSphere{}, boundary);
+    Boundary<N> boundary = CubicalBoundary<N>(simbox, params.bounce);
+
+    auto unaryForceFunc = [params](const auto& element, auto fbegin) {};
+
+
+
+    run<N, LoadBalancer>(argc, argv, experiment::ExpandSphere{}, boundary, unaryForceFunc);
 
     return 0;
 }

@@ -13,13 +13,14 @@
 #include <yalbb/policy.hpp>
 #include <yalbb/probe.hpp>
 #include <yalbb/ljpotential.hpp>
+#include <yalbb/functionwrapper.hpp>
 
 #include "initial_conditions.hpp"
 #include "loadbalancing.hpp"
 #include "experience.hpp"
 
-template<int N, class LoadBalancer, class Experiment>
-void run(int argc, char** argv, Experiment experimentGenerator, Boundary<N> boundary) {
+template<int N, class LoadBalancer, class Experiment, class UnaryForceFunc>
+void run(int argc, char** argv, Experiment experimentGenerator, Boundary<N> boundary, UnaryForceFunc unaryFF) {
     int nproc;
     float ver;
 
@@ -59,6 +60,7 @@ void run(int argc, char** argv, Experiment experimentGenerator, Boundary<N> boun
         MPI_Finalize();
         exit(EXIT_FAILURE);
     }
+
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// Particles function definition
     auto datatype = elements::register_datatype<N>();
@@ -67,7 +69,7 @@ void run(int argc, char** argv, Experiment experimentGenerator, Boundary<N> boun
     auto getVelocityPtrFunc = [](auto* e) -> std::array<Real, N>* { return &e->velocity; };
     // Short range force function computation
     auto getForceFunc = [eps=params.eps_lj, sig=params.sig_lj, rc=params.rc, getPositionPtrFunc](const auto* receiver, const auto* source)->std::array<Real, N>{
-        return lj_compute_force<N>(receiver, source, eps, sig*sig, rc, getPositionPtrFunc);
+        return {0.,0.,0.};//lj_compute_force<N>(receiver, source, eps, sig*sig, rc, getPositionPtrFunc);
     };
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -84,7 +86,7 @@ void run(int argc, char** argv, Experiment experimentGenerator, Boundary<N> boun
     // Create a LB struct
     auto createLB            = lb::Creator<LoadBalancer>{};
     // Wrap everything
-    FunctionWrapper fWrapper(getPositionPtrFunc, getVelocityPtrFunc, getForceFunc, boxIntersectFunc, pointAssignFunc, doLoadBalancingFunc);
+    FunctionWrapper fWrapper(getPositionPtrFunc, getVelocityPtrFunc, unaryFF, getForceFunc, boxIntersectFunc, pointAssignFunc, doLoadBalancingFunc);
 
     double load_balancing_cost = 0;
     double load_balancing_parallel_efficiency = 0;

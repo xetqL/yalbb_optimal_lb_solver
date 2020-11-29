@@ -595,10 +595,11 @@ namespace vel {
 
         std::array<Real, N> operator()(std::mt19937 &gen, const std::array<Real, N>& pos) {
             using namespace vec::generic;
-            const auto strength = 1.0;
             const auto vec = pos - expand_from;
-            return normalize(vec);
+            auto v = normalize(vec) * temp;
+            return v;
         }
+
     };
     template<int N>
     struct ContractToPoint {
@@ -613,6 +614,11 @@ namespace vel {
             Real strength = uniform(gen);
             std::array<Real, N> vec = expand_from - pos;
             return normalize(vec) * strength;
+        }
+        std::array<Real, N> operator()(const std::array<Real, N>& pos) {
+            using namespace vec::generic;
+            std::array<Real, N> vec = expand_from - pos;
+            return normalize(vec) * temp;
         }
     };
 
