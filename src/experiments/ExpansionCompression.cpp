@@ -8,8 +8,6 @@ int main(int argc, char** argv) {
     if (!option.has_value()) { exit(EXIT_FAILURE); }
     auto params = option.value();
 
-    params.rc = 2.5f * params.sig_lj;
-    params.simsize = std::ceil(params.simsize / params.rc) * params.rc;
     const std::array<Real, N> box_center ={params.simsize / 2.0, params.simsize / 2.0, params.simsize / 2.0};
 
     Boundary<N> boundary = SphericalBoundary<N> {box_center, params.simsize / 2.0f};

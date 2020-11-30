@@ -41,9 +41,6 @@ void run(int argc, char** argv, Experiment experimentGenerator, Boundary<N> boun
     auto params = option.value();
     auto burn_params = option.value();
 
-    params.rc = 2.5f * params.sig_lj;
-    params.simsize = std::ceil(params.simsize / params.rc) * params.rc;
-
     burn_params.npart   = (int) (params.npart * 0.1);
     burn_params.nframes = 40;
     burn_params.npframe = 50;
