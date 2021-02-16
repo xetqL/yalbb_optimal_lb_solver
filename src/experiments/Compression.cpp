@@ -6,7 +6,8 @@ int main(int argc, char** argv) {
     auto option = get_params(argc, argv);
     if (!option.has_value()) { exit(EXIT_FAILURE); }
     auto params = option.value();
-    const std::array<Real, 2*N> simbox = {0, params.simsize, 0,params.simsize, 0,params.simsize};
+
+    const auto simbox = get_simbox<N>(params.simsize);
 
     Boundary<N> boundary = CubicalBoundary<N>{simbox, params.bounce};
 

@@ -4,13 +4,13 @@ project(yalbb)
 # Set compiler params
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_COMPILER mpic++)
-set(CMAKE_BUILD_TYPE Release)
 
 # Set build directory
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY bin)
 
 # find sources
 file(GLOB SRC src/*.cpp)
+
 # find headers
 file(GLOB HEADERS src/*.hpp)
 
@@ -66,20 +66,3 @@ target_link_libraries(${EXPA_BINARY_NAME} PRIVATE ${MPI_C_LIBRARY} ${ZOLTAN_LIBR
 add_executable(${GRAV_BINARY_NAME} ${GRAV_ENTRY} ${SRC} ${HEADERS})
 target_include_directories(${GRAV_BINARY_NAME} PRIVATE ${MPI_C_INCLUDE_PATH} ${YALBB_INCLUDE_DIRECTORY} ${ZOLTAN_INCLUDE_DIRECTORY} ${UF_INCLUDE_DIR})
 target_link_libraries(${GRAV_BINARY_NAME} PRIVATE ${MPI_C_LIBRARY} ${ZOLTAN_LIBRARY_PATH}  ${YALBB_LIBRARY_PATH} stdc++fs ${ZOLTAN_LIBRARY_PATH} ${CMAKE_THREAD_LIBS_INIT})
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

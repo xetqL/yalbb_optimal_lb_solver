@@ -46,10 +46,10 @@ void run(int argc, char** argv, Experiment experimentGenerator, Boundary<N> boun
     burn_params.npframe = 50;
     burn_params.monitor = false;
 
-    const std::array<Real, 2*N> simbox      = {0, params.simsize, 0,params.simsize, 0,params.simsize};
-    const std::array<Real,   N> simlength   = {params.simsize, params.simsize, params.simsize};
-    const std::array<Real,   N> box_center  = {params.simsize / (Real) 2.0,params.simsize / (Real)2.0,params.simsize / (Real)2.0};
-    const std::array<Real,   N> singularity = {params.simsize / (Real) 2.0,params.simsize / (Real)2.0,params.simsize / (Real)2.0};
+    const std::array<Real, 2*N> simbox      = get_simbox<N>(params.simsize);
+    const std::array<Real,   N> simlength   = get_box_width<N>(simbox);
+    const std::array<Real,   N> box_center  = get_box_center<N>(simbox);
+    const std::array<Real,   N> singularity = get_box_center<N>(simbox);
 
     MPI_Bcast(&params.seed, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
@@ -66,7 +66,7 @@ void run(int argc, char** argv, Experiment experimentGenerator, Boundary<N> boun
     auto getVelocityPtrFunc = [](auto* e) -> std::array<Real, N>* { return &e->velocity; };
     // Short range force function computation
     auto getForceFunc = [eps=params.eps_lj, sig=params.sig_lj, rc=params.rc, getPositionPtrFunc](const auto* receiver, const auto* source)->std::array<Real, N>{
-        return {0.,0.,0.};//lj_compute_force<N>(receiver, source, eps, sig*sig, rc, getPositionPtrFunc);
+        return lj_compute_force<N>(receiver, source, eps, sig*sig, rc, getPositionPtrFunc);
     };
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
