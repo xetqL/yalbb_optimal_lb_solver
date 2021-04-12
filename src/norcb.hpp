@@ -92,6 +92,7 @@ NoRCB* allocate_from(NoRCB* t) {
     ptr->world_size = t->world_size;
     return ptr;
 }
+
 void destroy(NoRCB* t) {
     delete t;
 }

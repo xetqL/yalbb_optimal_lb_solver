@@ -57,7 +57,7 @@ std::pair<int, int> pre_init_experiment(const std::string& preamble, MPI_Comm AP
 }
 
 template<int N>
-auto post_init_experiment(const MESH_DATA<elements::Element<N>>& mesh_data, double lbtime, const std::string& func, int nproc, MPI_Comm APP_COMM) {
+auto post_init_experiment(MESH_DATA<elements::Element<N>>* mesh_data, double lbtime, const std::string& func, int nproc, MPI_Comm APP_COMM) {
     MPI_Allreduce(MPI_IN_PLACE, &lbtime, 1, MPI_TIME, MPI_MAX, APP_COMM);
     par::pcout() << func << std::endl;
     Probe probe(nproc);
@@ -177,6 +177,47 @@ struct Expand2DSphere {
 
         return post_init_experiment<N>(mesh_data, lbtime, std::string("Expand2DSphere"), nproc, APP_COMM);
     }
+};
+struct CollidingSphere {
+template<int N, class BalancerType, class DoPartition, class GetPosFunc, class GetPointFunc>
+auto init(
+        BalancerType* zlb,
+        BoundingBox<N> simbox,
+        sim_param_t params,
+        MPI_Datatype datatype,
+        MPI_Comm APP_COMM,
+        GetPosFunc getPos,
+        GetPointFunc pointAssign,
+        DoPartition doPartition,
+        std::string preamble = "")
+{
+    using namespace vec::generic;
+    auto[rank, nproc] = pre_init_experiment(preamble, APP_COMM);
+
+    std::array<Real, N> box_length = get_box_width<N>(simbox);
+    std::array<Real, N> shift = {box_length[0] / static_cast<Real>(9.0), 0};
+    std::array<Real, N> box_center = get_box_center<N>(simbox);
+
+    auto mesh_data = new MESH_DATA<elements::Element<N>>();
+    mesh_data->els.push_back(elements::Element<N>({0.5, 0.5}, {0.0, 0.0}, 0, 0));
+    mesh_data->els.push_back(elements::Element<N>({0.5+params.rc/2, 0.5}, {0.0, 0.0}, 0, 0));
+    pos::UniformInSphere
+    // generate_random_particles<N>(mesh_data, rank, params.seed, params.npart / 2,
+    //                           pos::EquidistantOnDisk<N>(rank * params.npart / (2*nproc), 0.005, box_center - shift, 0.0),
+    //                           vel::ParallelToAxis<N, 0>(params.T0), APP_COMM);
+    // generate_random_particles<N>(mesh_data, rank, params.seed+1, params.npart / 2,
+    //                              pos::Ordered<N>(params.sig_lj / 2, box_center + shift, params.sig_lj*params.sig_lj*0.1, 45.0),
+    //                              vel::ParallelToAxis<N, 0>(-10.*params.T0));
+    std::cout << mesh_data->els.size() << std::endl;
+    lb::InitLB<BalancerType> init{};
+    init(zlb, mesh_data);
+    PAR_START_TIMER(lbtime, APP_COMM);
+    doPartition(zlb, mesh_data, getPos);
+    migrate_data(zlb, mesh_data->els, pointAssign, datatype, APP_COMM);
+    END_TIMER(lbtime);
+
+    return post_init_experiment<N>(mesh_data, lbtime, std::string("Collision"), nproc, APP_COMM);
+}
 };
 
 }

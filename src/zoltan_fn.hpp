@@ -394,7 +394,7 @@ void Zoltan_Do_LB(MESH_DATA<elements::Element<N>>* mesh_data, Zoltan_Struct* loa
     int *importProcs, *importToPart, *exportProcs, *exportToPart;
     // END OF ZOLTAN VARIABLES
 
-    zoltan_fn_init(load_balancer, mesh_data);
+    //zoltan_fn_init(load_balancer, mesh_data);
     Zoltan_LB_Partition(load_balancer,      /* input (all remaining fields are output) */
                         &changes,           /* 1 if partitioning was changed, 0 otherwise */
                         &numGidEntries,     /* Number of integers used for a global ID */

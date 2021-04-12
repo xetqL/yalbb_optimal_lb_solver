@@ -43,8 +43,9 @@ void run(int argc, char** argv, Experiment experimentGenerator, Boundary<N> boun
 
     burn_params.npart   = (int) (params.npart * 0.1);
     burn_params.nframes = 40;
-    burn_params.npframe = 50;
+    burn_params.npframe = 5;
     burn_params.monitor = false;
+    burn_params.record  = false;
 
     const std::array<Real, 2*N> simbox      = get_simbox<N>(params.simsize);
     const std::array<Real,   N> simlength   = get_box_width<N>(simbox);
@@ -87,7 +88,7 @@ void run(int argc, char** argv, Experiment experimentGenerator, Boundary<N> boun
 
     double load_balancing_cost = 0;
     double load_balancing_parallel_efficiency = 0;
-    std::vector<experiment::Config> configs{};
+    std::vector<experiment::Config> configs {};
 
     /** Burn CPU cycle */
     {
@@ -95,8 +96,9 @@ void run(int argc, char** argv, Experiment experimentGenerator, Boundary<N> boun
         MPI_Comm_dup(MPI_COMM_WORLD, &APP_COMM);
         auto zlb = createLB(APP_COMM);
         auto[mesh_data, probe, lbtime, exp_name] = experimentGenerator.template init<N>(zlb, simbox, burn_params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, doPartition, "Burn CPU Cycle:");
-        simulate<N>(zlb, &mesh_data, lb::Static{}, boundary, fWrapper, &burn_params, &probe, datatype, APP_COMM, "BURN");
+        simulate<N>(zlb, mesh_data, lb::Static{}, boundary, fWrapper, &burn_params, &probe, datatype, APP_COMM, "BURN");
         destroyLB(zlb);
+        delete mesh_data;
     }
 
     if(params.nb_best_path) {
@@ -105,11 +107,13 @@ void run(int argc, char** argv, Experiment experimentGenerator, Boundary<N> boun
         auto zlb = createLB(APP_COMM);
         auto[mesh_data, probe, lbtime, exp_name] = experimentGenerator.template init<N>(zlb, simbox, params, datatype, APP_COMM, getPositionPtrFunc, pointAssignFunc, doPartition, "A*\n");
         const std::string simulation_name = fmt("%s%i/%i/%i/%s/Astar",params.simulation_name,params.npart,params.seed, params.id, exp_name);
-        std::tie(solution_stats,opt_scenario) = simulate_shortest_path<N>(zlb, &mesh_data, boundary, fWrapper, &params, datatype,
+        std::tie(solution_stats,opt_scenario) = simulate_shortest_path<N>(zlb, mesh_data, boundary, fWrapper, &params, datatype,
                                                                           lb::Copier<LoadBalancer>{},
                                                                           lb::Destroyer<LoadBalancer>{}, APP_COMM, simulation_name);
         load_balancing_cost = solution_stats.compute_avg_lb_time();
         configs.emplace_back("AstarReproduce\n", "AstarReproduce",  params, lb::Reproduce{opt_scenario});
+        delete mesh_data;
+
     }
 
     experiment::load_configs(configs, params);
@@ -121,8 +125,9 @@ void run(int argc, char** argv, Experiment experimentGenerator, Boundary<N> boun
         const std::string simulation_name = fmt("%s%i/%i/%i/%s/%s",params.simulation_name,params.npart,params.seed, params.id, exp_name,config_name);
         probe.push_load_balancing_time(load_balancing_cost);
         probe.push_load_balancing_parallel_efficiency(1.0);
-        simulate<N>(zlb, &mesh_data, criterion, boundary, fWrapper, &params, &probe, datatype, APP_COMM, simulation_name);
+        simulate<N>(zlb, mesh_data, criterion, boundary, fWrapper, &params, &probe, datatype, APP_COMM, simulation_name);
         destroyLB(zlb);
+        delete mesh_data;
     }
 
     MPI_Finalize();

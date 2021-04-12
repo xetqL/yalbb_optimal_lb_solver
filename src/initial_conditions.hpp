@@ -672,7 +672,81 @@ namespace pos {
         }
     };
     template<int N> using  UniformInSphere = statistic::UniformSphericalDistribution<N, Real>;
-    template<int N> using  UniformOnSphere = statistic::UniformOnSphereEdgeDistribution<N, Real>;
+    template<int N> using  UniformOnSphere         = statistic::UniformOnSphereEdgeDistribution<N, Real>;
+    template<int N> struct EquidistantOnDisk {
+        mutable unsigned i=0;
+        Real k;
+        std::array<Real, N> center {};
+        Real angle;
+        explicit EquidistantOnDisk(unsigned start_from, Real k, std::array<Real, N> center, Real angle = 0) : i(start_from), k(k), center(center), angle(angle) {}
+        std::array<Real, N> operator()(std::mt19937 &gen) {
+            if constexpr(N==3){
+                throw std::logic_error("not defined");
+            } else {
+                const double gr=(sqrt(5.0) + 1.0) / 2.0;  // golden ratio = 1.6180339887498948482
+                const double ga=(2.0 - gr) * (2.0*M_PI);  // golden angle = 2.39996322972865332
+
+                const double r = sqrt(i) * k;
+                const double theta = ga * i;
+
+                const double x = cos(theta) * r;
+                const double y = sin(theta) * r;
+
+                i++;
+                auto __theta = angle * M_PI / 180.0 ;
+
+                auto cs = cos(__theta);
+                auto sn = sin(__theta);
+
+                auto px = x * cs - y * sn;
+                auto py = x * sn + y * cs;
+
+                return {px + center[0], py + center[1]};
+            }
+        }
+    };
+    template<int N> struct Ordered {
+        mutable unsigned i=0;
+        ;
+        std::array<Real, N> center {};
+        Real angle;
+        Real radius;
+        Real el_radius;
+        std::array<Real, N> p{};
+        explicit Ordered(Real r, std::array<Real, N> center, Real el_radius, Real angle = 0) :
+            radius(r), center(center), el_radius(el_radius), angle(angle) {
+            using namespace vec::generic;
+            p = center - r;
+        }
+
+        std::array<Real, N> operator()(std::mt19937 &gen) {
+            using namespace vec::generic;
+            auto r2 = radius*radius;
+            do {
+                p[0] += el_radius;
+
+                if(std::abs(p[0]-center[0]) > radius) {
+                    p[0] = center[0] - radius;
+                    p[1] += el_radius;
+                }
+
+                if(std::abs(p[1]-center[1]) > radius) {
+                    p[1] = center[1] - radius;
+                    if constexpr(N==3)
+                        p[2] += el_radius;
+                    else {
+                        break;
+                    }
+                }
+
+                if constexpr(N==3) if(std::abs(p[2]-center[2]) > radius) return {-1, -1, -1};
+            } while(norm2(p - center) > r2);
+            i++;
+            std::cout << i << std::endl;
+            return p;
+        }
+    };
+
     template<int N> struct LoadFromFile {
         std::ifstream infile;
         std::string   header;
@@ -705,6 +779,37 @@ MESH_DATA<elements::Element<N>> generate_random_particles(int rank, const sim_pa
         std::cout << mesh.els.size() << " Done !" << std::endl;
     }
     return mesh;
+}
+
+template<int N, class  PositionFunctor, class VelocityFunctor>
+void generate_random_particles(MESH_DATA<elements::Element<N>>* mesh,
+                               int rank, int seed, int npart, PositionFunctor rand_pos, VelocityFunctor rand_vel) {
+    if (!rank) {
+        mesh->els.reserve(npart);
+        std::cout << "Generating data ..." << std::endl;
+        std::mt19937 my_gen(seed);
+        for(int i = 0;i < npart; ++i) {
+            auto pos = rand_pos(my_gen);
+            mesh->els.emplace_back(pos, rand_vel(my_gen, pos), i, i);
+        }
+        std::cout << mesh->els.size() << " Done !" << std::endl;
+    }
+}
+
+template<int N, class  PositionFunctor, class VelocityFunctor>
+void generate_random_particles(MESH_DATA<elements::Element<N>>* mesh,
+                           int rank, int seed, int npart, PositionFunctor rand_pos, VelocityFunctor rand_vel, MPI_Comm comm) {
+    int wsize;
+    MPI_Comm_size(comm, &wsize);
+    unsigned part_to_gen = npart / wsize;
+    mesh->els.reserve(part_to_gen);
+    std::cout << rank << " generating data ..." << std::endl;
+    std::mt19937 my_gen_vel(seed + rank);
+    std::mt19937 my_gen_pos(seed + rank + wsize);
+    for(int i = 0;i < part_to_gen; ++i) {
+        auto pos = rand_pos(my_gen_pos);
+        mesh->els.emplace_back(pos, rand_vel(my_gen_vel, pos), i, i);
+    }
 }
 
 #endif //NBMPI_INITIAL_CONDITIONS_HPP

@@ -24,6 +24,7 @@ find_package(Threads)
 # find MPI
 find_package(MPI REQUIRED)
 # find YALBB
+
 set(YALBB_INSTALL_FOLDER /home/xetql/projects/cpp)
 find_library(YALBB_LIBRARY_PATH NAMES yalbb HINTS ${YALBB_INSTALL_FOLDER}/yalbb/lib)
 find_path(YALBB_INCLUDE_DIRECTORY NAMES yalbb HINTS  ${YALBB_INSTALL_FOLDER}/yalbb/includes)
@@ -66,3 +67,8 @@ target_link_libraries(${EXPA_BINARY_NAME} PRIVATE ${MPI_C_LIBRARY} ${ZOLTAN_LIBR
 add_executable(${GRAV_BINARY_NAME} ${GRAV_ENTRY} ${SRC} ${HEADERS})
 target_include_directories(${GRAV_BINARY_NAME} PRIVATE ${MPI_C_INCLUDE_PATH} ${YALBB_INCLUDE_DIRECTORY} ${ZOLTAN_INCLUDE_DIRECTORY} ${UF_INCLUDE_DIR})
 target_link_libraries(${GRAV_BINARY_NAME} PRIVATE ${MPI_C_LIBRARY} ${ZOLTAN_LIBRARY_PATH}  ${YALBB_LIBRARY_PATH} stdc++fs ${ZOLTAN_LIBRARY_PATH} ${CMAKE_THREAD_LIBS_INIT})
+
+
+add_executable(collision src/experiments/Collision.cpp ${SRC} ${HEADERS})
+target_include_directories(collision PRIVATE ${MPI_C_INCLUDE_PATH} ${YALBB_INCLUDE_DIRECTORY} ${ZOLTAN_INCLUDE_DIRECTORY} ${UF_INCLUDE_DIR})
+target_link_libraries(collision PRIVATE ${MPI_C_LIBRARY} ${ZOLTAN_LIBRARY_PATH}  ${YALBB_LIBRARY_PATH} stdc++fs ${ZOLTAN_LIBRARY_PATH} ${CMAKE_THREAD_LIBS_INIT})
