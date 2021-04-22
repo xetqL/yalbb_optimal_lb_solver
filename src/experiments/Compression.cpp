@@ -13,7 +13,9 @@ int main(int argc, char** argv) {
 
     auto unaryForceFunc = [params](const auto& element, auto fbegin) {};
 
-    run<N, LoadBalancer>(argc, argv, experiment::ContractSphere{}, boundary, unaryForceFunc);
+    experiment::ContractSphere<N> exp(simbox, params, elements::register_datatype<N>(), MPI_COMM_WORLD, "contract");
+
+    run<N, LoadBalancer>(argc, argv, exp, boundary, unaryForceFunc);
 
     return 0;
 }

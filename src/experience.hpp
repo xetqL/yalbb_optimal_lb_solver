@@ -30,7 +30,6 @@ void load_configs(std::vector<Config>& configs, sim_param_t params){
     // Menon-like criterion
     configs.emplace_back("VanillaMenon",        "VMenon",           params, lb::VanillaMenon{});
     configs.emplace_back("OfflineMenon",        "OMenon",           params, lb::OfflineMenon{});
-    configs.emplace_back("ImprovedMenon",       "IMenon",           params, lb::ImprovedMenon{});
     configs.emplace_back("PositivMenon",        "PMenon",           params, lb::ImprovedMenonNoMax{});
     configs.emplace_back("ZhaiMenon",           "ZMenon",           params, lb::ZhaiMenon{});
     // Procassini
@@ -44,142 +43,147 @@ void load_configs(std::vector<Config>& configs, sim_param_t params){
     configs.emplace_back("Marquez 125",         "Marquez_125",      params, lb::Marquez{1.25});
     configs.emplace_back("Marquez 85",          "Marquez_85",       params, lb::Marquez{0.85});
     configs.emplace_back("Marquez 65",          "Marquez_65",       params, lb::Marquez{0.65});
+
 }
 
-namespace {
-
-std::pair<int, int> pre_init_experiment(const std::string& preamble, MPI_Comm APP_COMM){
+template<unsigned N, class TParam> class Experiment {
+protected:
+    BoundingBox<N> simbox;
+    const std::unique_ptr<TParam>& params;
+    MPI_Datatype datatype;
+    MPI_Comm APP_COMM;
+    std::string name;
     int rank, nproc;
-    MPI_Comm_rank(APP_COMM, &rank);
-    MPI_Comm_size(APP_COMM, &nproc);
-    par::pcout() << preamble << std::endl;
-    return {rank, nproc};
-}
 
-template<int N>
-auto post_init_experiment(MESH_DATA<elements::Element<N>>* mesh_data, double lbtime, const std::string& func, int nproc, MPI_Comm APP_COMM) {
-    MPI_Allreduce(MPI_IN_PLACE, &lbtime, 1, MPI_TIME, MPI_MAX, APP_COMM);
-    par::pcout() << func << std::endl;
-    Probe probe(nproc);
-    return std::make_tuple(mesh_data, probe, lbtime, func);
-}
+    virtual void setup(MESH_DATA<elements::Element<N>>* mesh_data) = 0;
+public:
+    using param_type = TParam;
+    Experiment(BoundingBox<N> simbox, const std::unique_ptr<TParam>& params,
+               MPI_Datatype datatype, MPI_Comm APP_COMM,
+               std::string name) :
+            simbox(std::move(simbox)),
+            params(params),
+            datatype(datatype),
+            APP_COMM(APP_COMM),
+            name(std::move(name)){
+        MPI_Comm_rank(APP_COMM, &rank);
+        MPI_Comm_size(APP_COMM, &nproc);
+    }
 
-}
+    template<class BalancerType, class GetPosFunc>
+    auto init(BalancerType* zlb, GetPosFunc getPos, const std::string& preamble) {
+        par::pcout() << preamble << std::endl;
 
-struct UniformCube {
-    template<int N, class BalancerType, class DoPartition, class GetPosFunc, class GetPointFunc>
-    auto init(BalancerType* zlb,
-              BoundingBox<N> simbox,
-              sim_param_t params,
-              MPI_Datatype datatype,
-              MPI_Comm APP_COMM,
-              GetPosFunc getPos,
-              GetPointFunc pointAssign,
-              DoPartition doPartition,
-              std::string preamble = "") {
-        auto[rank, nproc] = pre_init_experiment(preamble, APP_COMM);
+        auto mesh_data = std::make_unique<MESH_DATA<elements::Element<N>>>();
 
-        // EXPERIMENTATION PART
-        auto mesh_data = generate_random_particles<N>(rank, params,
-                                                      pos::UniformInCube<N>(simbox),
-                                                      vel::GoToStripe<N, N-1>{params.T0 * params.T0, params.simsize - (params.simsize / (float) nproc)});
+        lb::InitLB<BalancerType>      init {};
+        lb::DoPartition<BalancerType> doPartition {};
+        lb::AssignPoint<BalancerType> pointAssign {};
+
+        setup(mesh_data.get());
+        init(zlb, mesh_data.get());
+
+        Probe probe(nproc);
         PAR_START_TIMER(lbtime, APP_COMM);
-        doPartition(zlb, &mesh_data, getPos);
-        migrate_data(zlb, mesh_data.els, pointAssign, datatype, APP_COMM);
+        doPartition(zlb, mesh_data.get(), getPos);
+        migrate_data(zlb, mesh_data->els, pointAssign, datatype, APP_COMM);
         END_TIMER(lbtime);
-        // END
+        size_t n_els = mesh_data->els.size();
+        size_t sum   = mesh_data->els.size();
+        MPI_Allreduce(MPI_IN_PLACE, &lbtime, 1, MPI_TIME, MPI_MAX, APP_COMM);
+        MPI_Allreduce(MPI_IN_PLACE, &sum, 1,  par::get_mpi_type<size_t>(), MPI_SUM, APP_COMM);
+        MPI_Allreduce(MPI_IN_PLACE, &n_els, 1,  par::get_mpi_type<size_t>(), MPI_MAX, APP_COMM);
 
-        return post_init_experiment<N>(mesh_data, lbtime, std::string("UniformCube"), nproc, APP_COMM);
+        probe.push_load_balancing_time(lbtime);
+        probe.push_load_balancing_parallel_efficiency((static_cast<Real>(sum) / static_cast<Real>(nproc)) / static_cast<Real>(n_els));
+        probe.set_balanced(true);
+
+        par::pcout() << name << std::endl;
+
+        return std::make_tuple(std::move(mesh_data), probe, name);
     }
 };
-struct ContractSphere{
-template<int N, class BalancerType, class DoPartition, class GetPosFunc, class GetPointFunc>
-auto init(
-        BalancerType* zlb,
-        BoundingBox<N> simbox,
-        sim_param_t params,
-        MPI_Datatype datatype,
-        MPI_Comm APP_COMM,
-        GetPosFunc getPos,
-        GetPointFunc pointAssign,
-        DoPartition doPartition,
-        std::string preamble = "")
-{
-    auto[rank, nproc] = pre_init_experiment(preamble, APP_COMM);
 
-    std::array<Real, N> box_center{};
-    std::fill(box_center.begin(), box_center.end(), params.simsize / 2.0);
-    auto mesh_data = generate_random_particles<N>(rank, params,
-                                                  pos::UniformInSphere<N>(params.simsize / 2.0, box_center),
-                                                  vel::ContractToPoint<N>(params.T0, box_center));
-    PAR_START_TIMER(lbtime, APP_COMM);
-    doPartition(zlb, &mesh_data, getPos);
-    migrate_data(zlb, mesh_data.els, pointAssign, datatype, APP_COMM);
-    END_TIMER(lbtime);
+template<unsigned N, class TParam> class UniformCube      : public Experiment<N, TParam> {
+protected:
+    void setup(MESH_DATA<elements::Element<N>> *mesh_data) override {
+        generate_random_particles<N>(mesh_data, this->rank, this->params->seed, this->params->npart,
+                 pos::UniformInCube<N>(this->simbox),
+                 vel::GoToStripe<N, N-1> {this->params->T0 * this->params->T0,
+                                          this->params->simsize - (this->params->simsize / (float) this->nproc)});
 
-    return post_init_experiment<N>(mesh_data, lbtime, std::string("ContractSphere"), nproc, APP_COMM);
-}
+    }
+public:
+    UniformCube(const BoundingBox<N> &simbox, const std::unique_ptr<TParam>& params, MPI_Datatype datatype,
+                     MPI_Comm appComm, const std::string &name)
+            : Experiment<N, TParam>(simbox, params, datatype, appComm, name) {}
 };
-struct ExpandSphere {
-template<int N, class BalancerType, class DoPartition, class GetPosFunc, class GetPointFunc>
-auto init(
-        BalancerType* zlb,
-        BoundingBox<N> simbox,
-        sim_param_t params,
-        MPI_Datatype datatype,
-        MPI_Comm APP_COMM,
-        GetPosFunc getPos,
-        GetPointFunc pointAssign,
-        DoPartition doPartition,
-        std::string preamble = "")
-{
-    auto[rank, nproc] = pre_init_experiment(preamble, APP_COMM);
+template<unsigned N, class TParam> class ContractSphere   : public Experiment<N, TParam>{
+protected:
+    void setup(MESH_DATA<elements::Element<N>> *mesh_data) override {
+        std::array<Real, N> box_center {};
+        std::fill(box_center.begin(), box_center.end(), this->params->simsize / 2.0);
+        generate_random_particles<N>(mesh_data, this->rank, this->params->seed, this->params->npart,
+                                  pos::UniformInSphere<N>(this->params->simsize / 2.0, box_center),
+                                  vel::ContractToPoint<N>(this->params->T0, box_center));
 
-    //auto zlb = zoltan_create_wrapper(APP_COMM);
-    std::array<Real, N> box_center{};
-    std::fill(box_center.begin(), box_center.end(), params.simsize / 2.0);
-    auto mesh_data = generate_random_particles<N>(rank, params,
-                                                  pos::UniformInSphere<N>(params.simsize / 20.0, box_center),
-                                                  vel::ExpandFromPoint<N>(params.T0, box_center));
-    PAR_START_TIMER(lbtime, APP_COMM);
-    doPartition(zlb, &mesh_data, getPos);
-    migrate_data(zlb, mesh_data.els, pointAssign, datatype, APP_COMM);
-    END_TIMER(lbtime);
-
-    return post_init_experiment<N>(mesh_data, lbtime, std::string("ExpandSphere"), nproc, APP_COMM);
-}
+    }
+public:
+    ContractSphere(const BoundingBox<N> &simbox, const std::unique_ptr<TParam>& params, MPI_Datatype datatype,
+                     MPI_Comm appComm, const std::string &name)
+            : Experiment<N, TParam>(simbox, params, datatype, appComm, name) {}
 };
-struct Expand2DSphere {
-    template<int N, class BalancerType, class DoPartition, class GetPosFunc, class GetPointFunc>
-    auto init(
-            BalancerType* zlb,
-            BoundingBox<N> simbox,
-            sim_param_t params,
-            MPI_Datatype datatype,
-            MPI_Comm APP_COMM,
-            GetPosFunc getPos,
-            GetPointFunc pointAssign,
-            DoPartition doPartition,
-            std::string preamble = "")
-    {
-        auto[rank, nproc] = pre_init_experiment(preamble, APP_COMM);
-
-        //auto zlb = zoltan_create_wrapper(APP_COMM);
+template<unsigned N, class TParam> class ExpandSphere     : public Experiment<N, TParam> {
+protected:
+    void setup(MESH_DATA<elements::Element<N>> *mesh_data) override {
         std::array<Real, N> box_center{};
-        std::fill(box_center.begin(), box_center.end(), params.simsize / 2.0);
-        auto mesh_data = generate_random_particles<N>(rank, params,
-                                                      pos::UniformOnSphere<N>(params.simsize / 20.0, box_center),
-                                                      vel::ExpandFromPoint<N>(params.T0, box_center));
-        PAR_START_TIMER(lbtime, APP_COMM);
-        doPartition(zlb, &mesh_data, getPos);
-        migrate_data(zlb, mesh_data.els, pointAssign, datatype, APP_COMM);
-        END_TIMER(lbtime);
+        std::fill(box_center.begin(), box_center.end(), this->params->simsize / 2.0);
+        generate_random_particles<N>(mesh_data, this->rank, this->params->seed, this->params->npart,
+                                     pos::UniformInSphere<N>(this->params->simsize / 20.0, box_center),
+                                     vel::ExpandFromPoint<N>(this->params->T0, box_center));
 
-        return post_init_experiment<N>(mesh_data, lbtime, std::string("Expand2DSphere"), nproc, APP_COMM);
+    }
+public:
+    ExpandSphere(const BoundingBox<N> &simbox, const std::unique_ptr<TParam>& params, MPI_Datatype datatype,
+                     MPI_Comm appComm, const std::string &name)
+            : Experiment<N, TParam>(simbox, params, datatype, appComm, name) {}
+};
+template<unsigned N, class TParam> class CollidingSpheres : public Experiment<N, TParam> {
+protected:
+    void setup(MESH_DATA<elements::Element<N>> *mesh_data) override {
+        using namespace vec::generic;
+        std::array<Real, N> box_length = get_box_width<N>(this->simbox);
+        std::array<Real, N> shift = {box_length[0] / static_cast<Real>(9.0), 0};
+        std::array<Real, N> box_center = get_box_center<N>(this->simbox);
+        generate_random_particles<N>(mesh_data, this->rank, this->params->seed, this->params->npart / 2,
+                                     pos::EquidistantOnDisk<N>(this->rank * this->params->npart / (2 * this->nproc), 0.005, box_center - shift, 0.0),
+                                     vel::ParallelToAxis<N, 0>(this->params->T0), this->APP_COMM);
+
+        generate_random_particles<N>(mesh_data, this->rank, this->params->seed, this->params->npart / 2,
+                                     pos::EquidistantOnDisk<N>(this->rank * this->params->npart / (2 * this->nproc), 0.005, box_center + shift, 0.0),
+                                     vel::ParallelToAxis<N, 0>(-this->params->T0), this->APP_COMM);
+    }
+public:
+    CollidingSpheres(const BoundingBox<N> &simbox, const std::unique_ptr<TParam>& params, MPI_Datatype datatype,
+                     MPI_Comm appComm, const std::string &name)
+            : Experiment<N, TParam>(simbox, params, datatype, appComm, name) {}
+};
+template<class TParam>
+class Expand2DSphere : public Experiment<2, TParam> {
+    static const unsigned N = 2;
+protected:
+    void setup(MESH_DATA<elements::Element<N>> *mesh_data) override {
+        std::array<Real, N> box_center{};
+        std::fill(box_center.begin(), box_center.end(), this->params->simsize / 2.0);
+        generate_random_particles<N>(mesh_data, this->rank, this->params->seed, this->params->npart,
+                                     pos::UniformOnSphere<N>(this->params->simsize / 20.0, box_center),
+                                     vel::ExpandFromPoint<N>(this->params->T0, box_center));
     }
 };
+
+/*
 struct CollidingSphere {
-template<int N, class BalancerType, class DoPartition, class GetPosFunc, class GetPointFunc>
+template<unsigned N, class BalancerType, class DoPartition, class GetPosFunc, class GetPointFunc>
 auto init(
         BalancerType* zlb,
         BoundingBox<N> simbox,
@@ -188,28 +192,25 @@ auto init(
         MPI_Comm APP_COMM,
         GetPosFunc getPos,
         GetPointFunc pointAssign,
-        DoPartition doPartition,
         std::string preamble = "")
 {
     using namespace vec::generic;
     auto[rank, nproc] = pre_init_experiment(preamble, APP_COMM);
+    auto mesh_data = new MESH_DATA<elements::Element<N>>();
 
     std::array<Real, N> box_length = get_box_width<N>(simbox);
     std::array<Real, N> shift = {box_length[0] / static_cast<Real>(9.0), 0};
     std::array<Real, N> box_center = get_box_center<N>(simbox);
 
-    auto mesh_data = new MESH_DATA<elements::Element<N>>();
-    mesh_data->els.push_back(elements::Element<N>({0.5, 0.5}, {0.0, 0.0}, 0, 0));
-    mesh_data->els.push_back(elements::Element<N>({0.5+params.rc/2, 0.5}, {0.0, 0.0}, 0, 0));
-    pos::UniformInSphere
-    // generate_random_particles<N>(mesh_data, rank, params.seed, params.npart / 2,
-    //                           pos::EquidistantOnDisk<N>(rank * params.npart / (2*nproc), 0.005, box_center - shift, 0.0),
-    //                           vel::ParallelToAxis<N, 0>(params.T0), APP_COMM);
-    // generate_random_particles<N>(mesh_data, rank, params.seed+1, params.npart / 2,
-    //                              pos::Ordered<N>(params.sig_lj / 2, box_center + shift, params.sig_lj*params.sig_lj*0.1, 45.0),
-    //                              vel::ParallelToAxis<N, 0>(-10.*params.T0));
-    std::cout << mesh_data->els.size() << std::endl;
+    generate_random_particles<N>(mesh_data, rank, params.seed, params.npart / 2,
+                               pos::EquidistantOnDisk<N>(rank * params.npart / (2*nproc), 0.005, box_center - shift, 0.0),
+                               vel::ParallelToAxis<N, 0>(params.T0), APP_COMM);
+    generate_random_particles<N>(mesh_data, rank, params.seed+1, params.npart / 2,
+                                  pos::Ordered<N>(params.sig_lj / 2, box_center + shift, params.sig_lj*params.sig_lj*0.1, 45.0),
+                                  vel::ParallelToAxis<N, 0>(-10.*params.T0));
+
     lb::InitLB<BalancerType> init{};
+    lb::DoPartition<BalancerType> doPartition{};
     init(zlb, mesh_data);
     PAR_START_TIMER(lbtime, APP_COMM);
     doPartition(zlb, mesh_data, getPos);
@@ -219,6 +220,9 @@ auto init(
     return post_init_experiment<N>(mesh_data, lbtime, std::string("Collision"), nproc, APP_COMM);
 }
 };
+*/
+
+
 
 }
 #endif //YALBB_EXAMPLE_EXPERIENCE_HPP

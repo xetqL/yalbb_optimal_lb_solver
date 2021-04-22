@@ -157,6 +157,21 @@ namespace elements {
 
     };
 
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// Particles function definition
+    // Getter (position and velocity)
+
+    template<unsigned N>
+    inline std::array<Real, N>* getElementPositionPtr(Element<N>* e){
+        return &(e->position);
+    }
+
+    template<unsigned N>
+    inline std::array<Real, N>* getElementVelocityPtr(Element<N>* e){
+        return &(e->velocity);
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     template<int N>
     void import_from_file_float(std::string filename, std::vector<Element<N>>& particles) {

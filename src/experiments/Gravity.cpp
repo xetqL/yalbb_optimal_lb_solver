@@ -19,7 +19,9 @@ int main(int argc, char** argv) {
         std::copy(f.begin(), f.end(), fbegin);
     };
 
-    run<N, LoadBalancer>(argc, argv, experiment::UniformCube{}, boundary, unaryForceFunc);
+    experiment::UniformCube<N> exp(simbox, params, elements::register_datatype<N>(), MPI_COMM_WORLD, "ExpansionCompresion");
+
+    run<N, LoadBalancer>(argc, argv, exp, boundary, unaryForceFunc);
 
     return 0;
 }

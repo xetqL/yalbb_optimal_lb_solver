@@ -683,23 +683,23 @@ namespace pos {
             if constexpr(N==3){
                 throw std::logic_error("not defined");
             } else {
-                const double gr=(sqrt(5.0) + 1.0) / 2.0;  // golden ratio = 1.6180339887498948482
-                const double ga=(2.0 - gr) * (2.0*M_PI);  // golden angle = 2.39996322972865332
+                const Real gr=(std::sqrt(5.0) + 1.0) / 2.0;  // golden ratio = 1.6180339887498948482
+                const Real ga=(2.0 - gr) * (2.0*M_PI);  // golden angle = 2.39996322972865332
 
-                const double r = sqrt(i) * k;
-                const double theta = ga * i;
+                const Real r = sqrt(i) * k;
+                const Real theta = ga * i;
 
-                const double x = cos(theta) * r;
-                const double y = sin(theta) * r;
+                const Real x = std::cos(theta) * r;
+                const Real y = std::sin(theta) * r;
 
                 i++;
-                auto __theta = angle * M_PI / 180.0 ;
+                Real _theta = angle * M_PI / 180.0 ;
 
-                auto cs = cos(__theta);
-                auto sn = sin(__theta);
+                Real cs = std::cos(_theta);
+                Real sn = std::sin(_theta);
 
-                auto px = x * cs - y * sn;
-                auto py = x * sn + y * cs;
+                Real px = x * cs - y * sn;
+                Real py = x * sn + y * cs;
 
                 return {px + center[0], py + center[1]};
             }
@@ -742,7 +742,6 @@ namespace pos {
                 if constexpr(N==3) if(std::abs(p[2]-center[2]) > radius) return {-1, -1, -1};
             } while(norm2(p - center) > r2);
             i++;
-            std::cout << i << std::endl;
             return p;
         }
     };
@@ -803,7 +802,6 @@ void generate_random_particles(MESH_DATA<elements::Element<N>>* mesh,
     MPI_Comm_size(comm, &wsize);
     unsigned part_to_gen = npart / wsize;
     mesh->els.reserve(part_to_gen);
-    std::cout << rank << " generating data ..." << std::endl;
     std::mt19937 my_gen_vel(seed + rank);
     std::mt19937 my_gen_pos(seed + rank + wsize);
     for(int i = 0;i < part_to_gen; ++i) {
