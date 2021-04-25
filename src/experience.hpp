@@ -207,49 +207,5 @@ protected:
                                      vel::ExpandFromPoint<N>(this->params->T0, box_center));
     }
 };
-
-/*
-struct CollidingSphere {
-template<unsigned N, class BalancerType, class DoPartition, class GetPosFunc, class GetPointFunc>
-auto init(
-        BalancerType* zlb,
-        BoundingBox<N> simbox,
-        sim_param_t params,
-        MPI_Datatype datatype,
-        MPI_Comm APP_COMM,
-        GetPosFunc getPos,
-        GetPointFunc pointAssign,
-        std::string preamble = "")
-{
-    using namespace vec::generic;
-    auto[rank, nproc] = pre_init_experiment(preamble, APP_COMM);
-    auto mesh_data = new MESH_DATA<elements::Element<N>>();
-
-    std::array<Real, N> box_length = get_box_width<N>(simbox);
-    std::array<Real, N> shift = {box_length[0] / static_cast<Real>(9.0), 0};
-    std::array<Real, N> box_center = get_box_center<N>(simbox);
-
-    generate_random_particles<N>(mesh_data, rank, params.seed, params.npart / 2,
-                               pos::EquidistantOnDisk<N>(rank * params.npart / (2*nproc), 0.005, box_center - shift, 0.0),
-                               vel::ParallelToAxis<N, 0>(params.T0), APP_COMM);
-    generate_random_particles<N>(mesh_data, rank, params.seed+1, params.npart / 2,
-                                  pos::Ordered<N>(params.sig_lj / 2, box_center + shift, params.sig_lj*params.sig_lj*0.1, 45.0),
-                                  vel::ParallelToAxis<N, 0>(-10.*params.T0));
-
-    lb::InitLB<BalancerType> init{};
-    lb::DoPartition<BalancerType> doPartition{};
-    init(zlb, mesh_data);
-    PAR_START_TIMER(lbtime, APP_COMM);
-    doPartition(zlb, mesh_data, getPos);
-    migrate_data(zlb, mesh_data->els, pointAssign, datatype, APP_COMM);
-    END_TIMER(lbtime);
-
-    return post_init_experiment<N>(mesh_data, lbtime, std::string("Collision"), nproc, APP_COMM);
-}
-};
-*/
-
-
-
 }
 #endif //YALBB_EXAMPLE_EXPERIENCE_HPP
