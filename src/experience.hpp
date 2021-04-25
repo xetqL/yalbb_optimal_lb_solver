@@ -15,35 +15,64 @@
 #include "zoltan_fn.hpp"
 #include "initial_conditions.hpp"
 
-namespace experiment{
+namespace experiment {
+
+template<class NumericType>
+class StepProducer{
+    const std::vector<std::pair<NumericType, unsigned>> steps_repetition;
+    unsigned i = 0;
+    NumericType step = 0;
+    typename decltype(steps_repetition)::const_iterator current_rep;
+public:
+    explicit StepProducer(std::vector<std::pair<NumericType, unsigned>> steps_rep) :
+            steps_repetition(std::move(steps_rep)) {
+        current_rep = steps_repetition.begin();
+    }
+
+    NumericType next() {
+        step += current_rep->first;
+        i++;
+        if(i >= current_rep->second){
+            current_rep++;
+            i=0;
+        }
+        return step;
+    }
+
+    bool finished() const {
+        return current_rep == steps_repetition.end();
+    }
+};
+
 using Config = std::tuple<std::string, std::string, sim_param_t, lb::Criterion>;
 void load_configs(std::vector<Config>& configs, sim_param_t params){
 
     configs.emplace_back("Static",              "Static",           params, lb::Static{});
-    // Periodic
-    configs.emplace_back("Periodic 1000",       "Periodic_1000",    params, lb::Periodic{1000});
-    configs.emplace_back("Periodic 500",        "Periodic_500",     params, lb::Periodic{500});
-    configs.emplace_back("Periodic 250",        "Periodic_250",     params, lb::Periodic{250});
-    configs.emplace_back("Periodic 100",        "Periodic_100",     params, lb::Periodic{100});
-    configs.emplace_back("Periodic 50",         "Periodic_50",      params, lb::Periodic{50});
-    configs.emplace_back("Periodic 25",         "Periodic_25",      params, lb::Periodic{25});
-    // Menon-like criterion
-    configs.emplace_back("VanillaMenon",        "VMenon",           params, lb::VanillaMenon{});
-    configs.emplace_back("OfflineMenon",        "OMenon",           params, lb::OfflineMenon{});
-    configs.emplace_back("PositivMenon",        "PMenon",           params, lb::ImprovedMenonNoMax{});
-    configs.emplace_back("ZhaiMenon",           "ZMenon",           params, lb::ZhaiMenon{});
-    // Procassini
-    configs.emplace_back("Procassini 145",      "Procassini_145p",  params, lb::Procassini{1.45});
-    configs.emplace_back("Procassini 120",      "Procassini_120p",  params, lb::Procassini{1.20});
-    configs.emplace_back("Procassini 115",      "Procassini_115p",  params, lb::Procassini{1.15});
-    configs.emplace_back("Procassini 100",      "Procassini_100p",  params, lb::Procassini{1.00});
-    configs.emplace_back("Procassini 90",       "Procassini_90p",   params, lb::Procassini{0.95});
-    // Marquez
-    configs.emplace_back("Marquez 145",         "Marquez_145",      params, lb::Marquez{1.45});
-    configs.emplace_back("Marquez 125",         "Marquez_125",      params, lb::Marquez{1.25});
-    configs.emplace_back("Marquez 85",          "Marquez_85",       params, lb::Marquez{0.85});
-    configs.emplace_back("Marquez 65",          "Marquez_65",       params, lb::Marquez{0.65});
 
+    // Automatic criterion
+    configs.emplace_back("BBCriterion",  "BBCriterion",      params, lb::BastienMenon{});
+    configs.emplace_back("VanillaMenon", "VMenon",           params, lb::VanillaMenon{});
+    configs.emplace_back("OfflineMenon", "OMenon",           params, lb::OfflineMenon{});
+    configs.emplace_back("PositivMenon", "PMenon",           params, lb::ImprovedMenonNoMax{});
+    configs.emplace_back("ZhaiMenon",    "ZMenon",           params, lb::ZhaiMenon{});
+
+    // Periodic
+    configs.emplace_back("Periodic 1",       "Periodic_1",    params, lb::Periodic{1});
+    for(StepProducer<unsigned> producer({{25, 4}, {50, 10}, {100, 4}}); !producer.finished();){
+        unsigned step = producer.next();
+        par::pcout() << step << std::endl;
+        configs.emplace_back(fmt("Periodic %d", step), fmt("Periodic_%d", step), params, lb::Periodic{step});
+    }
+    // Procassini
+    for(StepProducer<unsigned> producer({{25, 6},{50, 9}, {100, 5}, {200, 2}}); !producer.finished();){
+        unsigned step = producer.next();
+        configs.emplace_back(fmt("Procassini %d", step), fmt("Procassini_%d", step), params, lb::Procassini{step / 100.0f});
+    }
+    // Marquez
+    for(StepProducer<unsigned> producer({{500, 1},{100, 5}, {125, 4}, {250, 2},{500, 2}, {100, 1}}); !producer.finished();){
+        unsigned step = producer.next();
+        configs.emplace_back("Marquez %d", "Marquez_%d", params, lb::Marquez{step / 100.0f});
+    }
 }
 
 template<unsigned N, class TParam> class Experiment {
@@ -104,14 +133,13 @@ public:
     }
 };
 
-template<unsigned N, class TParam> class UniformCube      : public Experiment<N, TParam> {
+template<unsigned N, class TParam> class UniformCube : public Experiment<N, TParam> {
 protected:
     void setup(MESH_DATA<elements::Element<N>> *mesh_data) override {
         generate_random_particles<N>(mesh_data, this->rank, this->params->seed, this->params->npart,
                  pos::UniformInCube<N>(this->simbox),
                  vel::GoToStripe<N, N-1> {this->params->T0 * this->params->T0,
                                           this->params->simsize - (this->params->simsize / (float) this->nproc)});
-
     }
 public:
     UniformCube(const BoundingBox<N> &simbox, const std::unique_ptr<TParam>& params, MPI_Datatype datatype,
