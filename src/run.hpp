@@ -58,15 +58,13 @@ void run(const YALBB& yalbb, sim_param_t* params, Experiment experimentGenerator
     auto doLoadBalancingFunc = lb::DoLB<LoadBalancer, decltype(getPositionPtrFunc)>(params->rc, datatype, APP_COMM, getPositionPtrFunc);
     // Destroy this LB struct
     auto destroyLB           = lb::Destroyer<LoadBalancer>{};
-
-    // Create a LB struct
-    // auto createLB            = lb::Creator<LoadBalancer>{};
+    // Get name of LB
+    auto getLBName           = lb::NameGetter<LoadBalancer>{};
 
     // Wrap everything
-    FunctionWrapper fWrapper(getPositionPtrFunc, getVelocityPtrFunc, unaryFF, binaryFunc, boxIntersectFunc, pointAssignFunc, doLoadBalancingFunc);
+    FunctionWrapper fWrapper(getPositionPtrFunc, getVelocityPtrFunc,
+                                unaryFF, binaryFunc, boxIntersectFunc, pointAssignFunc, doLoadBalancingFunc);
 
-    double load_balancing_cost = 0;
-    double load_balancing_parallel_efficiency = 0;
     std::vector<experiment::Config> configs {};
 
     /** Burn CPU cycle */
@@ -84,21 +82,21 @@ void run(const YALBB& yalbb, sim_param_t* params, Experiment experimentGenerator
         std::vector<int> opt_scenario{};
         auto zlb = createLB();
         auto[mesh_data, probe, exp_name] = experimentGenerator.template init(zlb, getPositionPtrFunc, "A*\n");
-        const std::string simulation_name = fmt("%s%i/%i/%i/%s/Astar",params->simulation_name,params->npart,params->seed, params->id, exp_name);
+        const std::string simulation_name = fmt("%s_%s_%i/%i/%i/%s/Astar", getLBName(), params->simulation_name, params->npart, params->seed, params->id, exp_name);
         std::tie(solution_stats,opt_scenario) = simulate_shortest_path<N>(zlb, mesh_data.get(), boundary, fWrapper, params, datatype,
                                                                           lb::Copier<LoadBalancer>{},
                                                                           lb::Destroyer<LoadBalancer>{}, APP_COMM, simulation_name);
-        load_balancing_cost = solution_stats.compute_avg_lb_time();
         configs.emplace_back("AstarReproduce\n", "AstarReproduce",  *params, lb::Reproduce{opt_scenario});
     }
 
     experiment::load_configs(configs, *params);
 
     for(auto& cfg : configs) {
+
         auto& [preamble, config_name, params, criterion] = cfg;
         auto zlb = createLB();
         auto[mesh_data, probe, exp_name] = experimentGenerator.template init(zlb, getPositionPtrFunc, preamble);
-        const std::string simulation_name = fmt("%s%i/%i/%i/%s/%s",params.simulation_name,params.npart,params.seed, params.id, exp_name,config_name);
+        const std::string simulation_name = fmt("%s_%s_%i/%i/%i/%s/%s",getLBName(),params.simulation_name,params.npart,params.seed, params.id, exp_name,config_name);
 
         simulate<N>(zlb, mesh_data.get(), criterion, boundary, fWrapper, &params, &probe, datatype, APP_COMM, simulation_name);
         destroyLB(zlb);

@@ -11,15 +11,38 @@
 
 namespace lb {
 
-template<class T=void> struct InitLB {};         // Init load balancer functor
-template<class T=void> struct Creator {};                      // Creator functor
-template<class T=void> struct Copier{};                        // Copy ptr functor
-template<class T=void> struct Destroyer {};                    // Destructor functor
+template<class InnerLoadBalancer, class Element>
+class LoadBalancer {
+    InnerLoadBalancer* zlb;
+public:
+    virtual void init() = 0;
+    virtual LoadBalancer* clone() = 0;
+    virtual void partition(std::vector<Element>& elements) = 0;
+    virtual void intersect(Real rc, double x1, double y1, double z1, double x2, double y2, double z2, int* PEs, int* num_found) = 0;
+    virtual void assign(const Element* el, int* PE) = 0;
+    virtual std::string name() = 0;
+};
 
-template<class T=void> struct DoPartition {};                  // Do partitioning functor
-template<class T=void> struct IntersectDomain {};              // Domain intersection functor
-template<class T=void> struct AssignPoint {};                  // Point assignation functor
+template<class T=void> struct InitLB {};                        // Init load balancer functor
+template<class T=void> struct Creator {};                       // Creator functor
+template<class T=void> struct Copier {};                         // Copy ptr functor, used in optimal finder
+template<class T=void> struct Destroyer {};                     // Destructor functor
+template<class T=void> struct DoPartition {};                   // Do partitioning functor
+template<class T=void> struct IntersectDomain {}; // Domain intersection functor
+template<class T=void> struct AssignPoint {};                   // Point assignation functor
+template<class T=void> struct NameGetter {};                    // Point assignation functor
 
+template <> struct NameGetter<StripeLB> {
+    std::string operator() () { return std::string("StripeLB");}
+};
+
+template <> struct NameGetter<Zoltan_Struct> {
+    std::string operator() () { return std::string("HSFC");}
+};
+
+template <> struct NameGetter<norcb::NoRCB> {
+    std::string operator() () { return std::string("NoRCB");}
+};
 
 template<> struct InitLB<StripeLB> {
     template<class MD>
@@ -39,7 +62,7 @@ template<> struct InitLB<Zoltan_Struct> {
 template<> struct DoPartition<StripeLB> {
     template<class MD, class GetPosPtrF>
     void operator() (StripeLB* lb, MD* md, GetPosPtrF getPositionPtrFunc) {
-        lb->partition<StripeLB::CUT_ALONG>(md->els, getPositionPtrFunc);
+        lb->partition<StripeLB::CUT_ALONG>(md->els, [](auto *e){ return &(e->position); });
     }
 };
 template<> struct DoPartition<norcb::NoRCB> {
@@ -58,7 +81,7 @@ template<> struct DoPartition<norcb::NoRCB> {
 template<> struct DoPartition<Zoltan_Struct> {
     template<class MD, class GetPosPtrF>
     void operator() (Zoltan_Struct* lb, MD* md, GetPosPtrF getPositionPtrFunc) {
-        Zoltan_Do_LB(md, lb);
+        Zoltan_Do_LB(lb);
     }
 };
 

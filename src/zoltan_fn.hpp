@@ -385,8 +385,7 @@ typename std::vector<elements::Element<N>>::const_iterator Zoltan_Migrate_Partic
     return std::next(data.begin(), nb_data - prev_size);
 }
 
-template <int N>
-void Zoltan_Do_LB(MESH_DATA<elements::Element<N>>* mesh_data, Zoltan_Struct* load_balancer) {
+inline void Zoltan_Do_LB(Zoltan_Struct* load_balancer) {
 
     // ZOLTAN VARIABLES
     int changes, numGidEntries, numLidEntries, numImport, numExport;

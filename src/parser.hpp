@@ -13,6 +13,7 @@ struct param_t : public sim_param_t {
     float T0;           /* Initial temperature (1)    */
     float bounce;       /* shock absorption factor (0=no bounce, 1=full bounce) */
 };
+
 template<class T>
 void print_params(T& stream, const param_t* params) {
     stream << "[Global]" << std::endl;
@@ -56,7 +57,7 @@ void print_params(T& stream, const param_t* params) {
 }
 struct Parser : public TParser<param_t> {
     param_t* custom_params;
-    Parser(){
+    Parser() {
         custom_params = (param_t*) params.get();
         // Force (user-defined)
         parser.add_opt_value('e', "epslj",       custom_params->eps_lj, 1.0f, "Epsilon (lennard-jones)", "FLOAT");
