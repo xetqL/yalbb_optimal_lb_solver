@@ -4,3 +4,6 @@
 [submodule "useful-algorithms"]
 	path = useful-algorithms
 	url = git@github.com:xetql/useful-algorithms.git
+[submodule "NoRCB"]
+	path = NoRCB
+	url = git@github.com:xetqL/NoRCB.git

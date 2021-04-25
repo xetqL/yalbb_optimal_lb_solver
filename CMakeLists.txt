@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.15)
 project(yalbb)
 
+add_subdirectory(NoRCB)
+add_subdirectory(yalbb)
+
 # find MPI
 find_package(MPI REQUIRED)
 
@@ -63,7 +66,7 @@ set(NORCB_INCLUDE_DIR ${CMAKE_CURRENT_LIST_DIR}/NoRCB/include)
 set(NORCB_LIB ${CMAKE_CURRENT_LIST_DIR}/NoRCB/libnorcb.a)
 
 include_directories(src ${NORCB_INCLUDE_DIR} yalbb/zupply/src ${MPI_C_INCLUDE_PATH} ${YALBB_INCLUDE_DIRECTORY} ${ZOLTAN_INCLUDE_DIRECTORY} ${UF_INCLUDE_DIR})
-link_libraries(${NORCB_LIB} CGAL::CGAL ${MPI_C_LIBRARY} ${ZOLTAN_LIBRARY_PATH}  ${YALBB_LIBRARY_PATH} stdc++fs ${ZOLTAN_LIBRARY_PATH} ${CMAKE_THREAD_LIBS_INIT})
+#link_libraries(${NORCB_LIB} CGAL::CGAL ${MPI_C_LIBRARY} ${ZOLTAN_LIBRARY_PATH}  ${YALBB_LIBRARY_PATH} stdc++fs ${ZOLTAN_LIBRARY_PATH} ${CMAKE_THREAD_LIBS_INIT})
 
 # define experiments entry file
 set(EXPERIMENTS_FOLDER "src/experiments")
@@ -81,11 +84,16 @@ set(GRAV_BINARY_NAME "Gravity")
 set(GRAV_ENTRY "${EXPERIMENTS_FOLDER}/Gravity.cpp")
 
 add_executable(${EXPA_COMP_BINARY_NAME} ${EXPA_COMP_ENTRY} ${SRC} ${HEADERS})
+target_link_libraries(${EXPA_COMP_BINARY_NAME} norcb CGAL::CGAL ${MPI_C_LIBRARY} ${ZOLTAN_LIBRARY_PATH} yalbb stdc++fs ${CMAKE_THREAD_LIBS_INIT})
 
 add_executable(${COMP_BINARY_NAME} ${COMP_ENTRY} ${SRC} ${HEADERS})
+target_link_libraries(${COMP_BINARY_NAME} norcb CGAL::CGAL ${MPI_C_LIBRARY} ${ZOLTAN_LIBRARY_PATH} yalbb stdc++fs ${CMAKE_THREAD_LIBS_INIT})
 
 add_executable(${EXPA_BINARY_NAME} ${EXPA_ENTRY} ${SRC} ${HEADERS})
+target_link_libraries(${EXPA_BINARY_NAME} norcb CGAL::CGAL ${MPI_C_LIBRARY} ${ZOLTAN_LIBRARY_PATH} yalbb stdc++fs ${CMAKE_THREAD_LIBS_INIT})
 
 add_executable(${GRAV_BINARY_NAME} ${GRAV_ENTRY} ${SRC} ${HEADERS})
+target_link_libraries(${GRAV_BINARY_NAME} norcb CGAL::CGAL ${MPI_C_LIBRARY} ${ZOLTAN_LIBRARY_PATH} yalbb stdc++fs ${CMAKE_THREAD_LIBS_INIT})
 
 add_executable(Collision src/experiments/Collision.cpp ${SRC} ${HEADERS})
+target_link_libraries(Collision norcb CGAL::CGAL ${MPI_C_LIBRARY} ${ZOLTAN_LIBRARY_PATH} yalbb stdc++fs ${CMAKE_THREAD_LIBS_INIT})
