@@ -68,7 +68,7 @@ void load_configs(std::vector<Config>& configs, sim_param_t params){
         configs.emplace_back(fmt("Procassini %d", step), fmt("Procassini_%d", step), params, lb::Procassini{step / 100.0f});
     }
     // Marquez
-    for(StepProducer<unsigned> producer({{500, 1},{100, 5}, {125, 4}, {250, 2},{500, 2}, {100, 1}}); !producer.finished();){
+    for(StepProducer<unsigned> producer({{500, 1},{100, 5}, {125, 4}, {250, 2},{500, 2}, {1000, 1}}); !producer.finished();){
         unsigned step = producer.next();
         configs.emplace_back(fmt("Marquez %d", step), fmt("Marquez_%d",step), params, lb::Marquez{step / 100.0f});
     }
