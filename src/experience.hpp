@@ -60,7 +60,6 @@ void load_configs(std::vector<Config>& configs, sim_param_t params){
     configs.emplace_back("Periodic 1",       "Periodic_1",    params, lb::Periodic{1});
     for(StepProducer<unsigned> producer({{25, 4}, {50, 10}, {100, 4}}); !producer.finished();){
         unsigned step = producer.next();
-        par::pcout() << step << std::endl;
         configs.emplace_back(fmt("Periodic %d", step), fmt("Periodic_%d", step), params, lb::Periodic{step});
     }
     // Procassini
@@ -71,7 +70,7 @@ void load_configs(std::vector<Config>& configs, sim_param_t params){
     // Marquez
     for(StepProducer<unsigned> producer({{500, 1},{100, 5}, {125, 4}, {250, 2},{500, 2}, {100, 1}}); !producer.finished();){
         unsigned step = producer.next();
-        configs.emplace_back("Marquez %d", "Marquez_%d", params, lb::Marquez{step / 100.0f});
+        configs.emplace_back(fmt("Marquez %d", step), fmt("Marquez_%d",step), params, lb::Marquez{step / 100.0f});
     }
 }
 
