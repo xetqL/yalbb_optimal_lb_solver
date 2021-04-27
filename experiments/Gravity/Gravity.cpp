@@ -1,5 +1,7 @@
 #include "run.hpp"
 #include "parser.hpp"
+
+
 int main(int argc, char** argv) {
     constexpr unsigned N = 3;
     YALBB yalbb(argc, argv);
@@ -27,7 +29,7 @@ int main(int argc, char** argv) {
 
     experiment::UniformCube<N, param_t> exp(simbox, params, elements::register_datatype<N>(), MPI_COMM_WORLD, "ExpansionCompresion");
 
-    if constexpr (N<3){
+    if constexpr (N<3) {
         run<N, norcb::NoRCB>(yalbb, params.get(), exp, boundary, binaryForce, unaryForce, [APP_COMM=MPI_COMM_WORLD, &params](){
             auto lb_ptr = new norcb::NoRCB(norcb::init_domain<Real>(
                     -200, -200,200, 200), APP_COMM);
