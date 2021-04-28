@@ -55,7 +55,7 @@ find_path(ZOLTAN_INCLUDE_DIRECTORY NAMES zoltan.h HINTS ${ZOLTAN_INSTALL_FOLDER}
 set(UF_INCLUDE_DIR useful-algorithms/include)
 set(NORCB_INCLUDE_DIR ${CMAKE_CURRENT_LIST_DIR}/NoRCB/include)
 
-include_directories(src ${NORCB_INCLUDE_DIR} yalbb/zupply/src ${MPI_INCLUDE_PATH} ${YALBB_INCLUDE_DIRECTORY} ${ZOLTAN_INCLUDE_DIRECTORY} ${UF_INCLUDE_DIR})
+include_directories(src ${NORCB_INCLUDE_DIR} yalbb/zupply/src ${MPI_INCLUDE_PATH} yalbb/include ${ZOLTAN_INCLUDE_DIRECTORY} ${UF_INCLUDE_DIR})
 
 add_subdirectory(experiments/Collision)
 add_subdirectory(experiments/Compression)
