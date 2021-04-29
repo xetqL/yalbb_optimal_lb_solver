@@ -1,9 +1,8 @@
 #include "run.hpp"
 #include "parser.hpp"
 
-
 int main(int argc, char** argv) {
-    constexpr unsigned N = 3;
+    constexpr unsigned N = YALBB_DIMENSION;
     YALBB yalbb(argc, argv);
 
     Parser parser;

@@ -2,7 +2,7 @@
 #include "parser.hpp"
 #include <yalbb/yalbb.hpp>
 int main(int argc, char** argv) {
-    constexpr unsigned N = 2;
+    constexpr unsigned N = YALBB_DIMENSION;
 
     YALBB yalbb(argc, argv);
 

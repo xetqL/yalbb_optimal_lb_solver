@@ -4,6 +4,10 @@ project(yalbb)
 add_subdirectory(NoRCB)
 add_subdirectory(yalbb)
 
+set(YALBB_DIMENSION "2" CACHE STRING "number of dimensions")
+
+add_compile_definitions(YALBB_DIMENSION=${YALBB_DIMENSION})
+
 find_package( CGAL QUIET COMPONENTS  )
 if ( NOT CGAL_FOUND )
     message(STATUS "This project requires the CGAL library, and will not be compiled.")
