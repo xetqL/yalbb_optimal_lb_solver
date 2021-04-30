@@ -16,8 +16,11 @@ int main(int argc, char** argv) {
 
     Boundary<N> boundary = CubicalBoundary<N>{simbox, params->bounce};
 
-    auto unaryForce = [G=params->G](const auto& element, auto fbegin) {
-        *(fbegin + 1) += -G;
+    auto unaryForce = [center, G=params->G](const auto& element, auto fbegin) {
+        using namespace vec::generic;
+        auto f = normalize(center - element.position) * G;
+        std::copy(f.begin(), f.end(), fbegin);
+        *(fbegin + 1) += -3*G;
     };
 
     auto binaryForce = [eps=params->eps_lj, sig=params->sig_lj, rc=params->rc](const auto* receiver, const auto* source)->std::array<Real, N>{

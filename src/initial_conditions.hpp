@@ -583,6 +583,18 @@ class ParticleWallRandomElementsGenerator : public RandomElementsGenerator<N> {
 } // end of namespace initial_condition
 namespace vel {
 
+    template<unsigned N>
+    struct Uniform{
+        Real temp;
+        std::uniform_real_distribution<Real> uniform;
+        explicit Uniform(Real temp) : temp(temp), uniform(-2.0*temp*temp, 2.0*temp*temp) {  }
+
+        std::array<Real, N> operator()(std::mt19937 &gen, const std::array<Real, N>& pos) {
+            std::array<Real, N> v{};
+            std::generate(v.begin(), v.end(), [&](){return uniform(gen);});
+            return v;
+        }
+    };
     template<int N>
     struct ExpandFromPoint {
         std::array<Real, N> expand_from;
