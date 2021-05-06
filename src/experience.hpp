@@ -47,10 +47,12 @@ public:
 using Config = std::tuple<std::string, std::string, sim_param_t, lb::Criterion>;
 void load_configs(std::vector<Config>& configs, sim_param_t params){
 
+    configs.emplace_back("BBCriterion",  "BBCriterion",      params, lb::BastienMenon{});
+    return;
+
     configs.emplace_back("Static",              "Static",           params, lb::Static{});
 
     // Automatic criterion
-    configs.emplace_back("BBCriterion",  "BBCriterion",      params, lb::BastienMenon{});
     configs.emplace_back("VanillaMenon", "VMenon",           params, lb::VanillaMenon{});
     configs.emplace_back("OfflineMenon", "OMenon",           params, lb::OfflineMenon{});
     configs.emplace_back("PositivMenon", "PMenon",           params, lb::ImprovedMenonNoMax{});

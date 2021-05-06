@@ -16,6 +16,7 @@ int main(int argc, char** argv) {
     Boundary<N> boundary = CubicalBoundary<N>{simbox, params->bounce};
 
     auto unaryForce = [](const auto& element, auto fbegin) {};
+
     auto binaryForce = [eps=params->eps_lj, sig=params->sig_lj, rc=params->rc](const auto* receiver, const auto* source)->std::array<Real, N>{
         auto getPosFunc = [](auto* e) { return &(e->position); } ;
         return lj_compute_force<N>(receiver, source, eps, sig*sig, rc, getPosFunc);

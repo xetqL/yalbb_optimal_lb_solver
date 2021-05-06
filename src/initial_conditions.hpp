@@ -750,7 +750,6 @@ namespace pos {
                         break;
                     }
                 }
-
                 if constexpr(N==3) if(std::abs(p[2]-center[2]) > radius) return {-1, -1, -1};
             } while(norm2(p - center) > r2);
             i++;
