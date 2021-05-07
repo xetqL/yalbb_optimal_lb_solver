@@ -24,14 +24,6 @@ int main(int argc, char** argv) {
 
     experiment::ContractSphere<N, param_t> exp(simbox, params, elements::register_datatype<N>(), MPI_COMM_WORLD, "contract");
 
-    if constexpr (N<3){
-        run<N, norcb::NoRCB>(yalbb, params.get(), exp, boundary, binaryForce, unaryForce, [APP_COMM=MPI_COMM_WORLD, &params](){
-            auto lb_ptr = new norcb::NoRCB(norcb::init_domain<Real>(
-                    -200, -200,200, 200), APP_COMM);
-            return lb_ptr;
-        });
-    }
-
     run<N, Zoltan_Struct>(yalbb, params.get(), exp, boundary, binaryForce, unaryForce, [APP_COMM=MPI_COMM_WORLD, &params](){
         float ver;
         if(Zoltan_Initialize(0, nullptr, &ver) != ZOLTAN_OK) {
@@ -40,6 +32,14 @@ int main(int argc, char** argv) {
         }
         return zoltan_create_wrapper(APP_COMM);
     });
+
+    if constexpr (N<3) {
+        run<N, norcb::NoRCB>(yalbb, params.get(), exp, boundary, binaryForce, unaryForce, [APP_COMM=MPI_COMM_WORLD, &params](){
+            auto lb_ptr = new norcb::NoRCB(norcb::init_domain<Real>(
+                    -1.0, -1.0, params->simsize + 1.0, params->simsize + 1.0), APP_COMM);
+            return lb_ptr;
+        });
+    }
 
     return 0;
 }

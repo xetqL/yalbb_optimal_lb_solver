@@ -88,32 +88,31 @@ template<> struct DoPartition<Zoltan_Struct> {
 template<> struct IntersectDomain<norcb::NoRCB> {
     Real rc {};
     void operator() (norcb::NoRCB* zlb, double x1, double y1, double z1, double x2, double y2, double z2, int* PEs, int* num_found) const {
-        //zlb->get_intersecting_domains(x1,x2,y1,y2,z1,z2,PEs,num_found);
         START_TIMER(functime);
         auto rc_x = (x2-x1) / 2;
         auto rc_y = (y2-y1) / 2;
         auto rc_z = (z2-z1) / 2;
-        zlb->get_neighbors(x2-rc_x,y2-rc_y,z2-rc_z, 4.0*rc, PEs, num_found);
+        zlb->get_neighbors(x2-rc_x,y2-rc_y,z2-rc_z, rc_x, PEs, num_found);
         END_TIMER(functime);
-        //std::cout << zlb->rank << " " << functime << std::endl;
     }
 };
 template<> struct IntersectDomain<StripeLB> {
     Real rc {};
     void operator() (StripeLB* zlb, double x1, double y1, double z1, double x2, double y2, double z2, int* PEs, int* num_found) const {
-
         auto neighbors = zlb->get_neighbors(zlb->rank, rc);
         std::copy(neighbors.begin(), neighbors.end(), PEs);
         *num_found = neighbors.size();
     }
 };
 template<> struct IntersectDomain<Zoltan_Struct> {
-    Real rc{ 0 };
+    Real rc;
     void operator() (Zoltan_Struct* zlb, double x1, double y1, double z1, double x2, double y2, double z2, int* PEs, int* num_found) {
         START_TIMER(functime);
-        Zoltan_LB_Box_Assign(zlb, x1, y1, z1, x2, y2, z2, PEs, num_found);
+        auto rc_x = 3.0 * (x2-x1);
+        auto rc_y = (y2-y1) / 2;
+        auto rc_z = (z2-z1) / 2;
+        Zoltan_LB_Box_Assign(zlb, x1-rc_x, y1-rc_x, z1, x2+rc_x, y2+rc_x, z2, PEs, num_found);
         END_TIMER(functime);
-        //std::cout << " " << functime << std::endl;
     }
 };
 
@@ -122,11 +121,18 @@ template<> struct AssignPoint<norcb::NoRCB> {
     void operator() (norcb::NoRCB* zlb, const El* e, int* PE) {
         zlb->get_owner(e->position.at(0), e->position.at(1), PE);
     }
+    void operator() (norcb::NoRCB* zlb, Real x, Real y, Real z, int* PE) {
+        zlb->get_owner(x, y, PE);
+    }
 };
 template<> struct AssignPoint<StripeLB> {
     template<class El>
     void operator() (StripeLB* zlb, const El* e, int* PE) {
         zlb->lookup_domain<El::dimension, StripeLB::CUT_ALONG>(e->position.data(), PE);
+    }
+    void operator() (StripeLB* zlb, Real x, Real y, Real z, int* PE) {
+        Real pos[3] = {x,y,z};
+        zlb->lookup_domain<3, StripeLB::CUT_ALONG>(pos, PE);
     }
 };
 template<> struct AssignPoint<Zoltan_Struct> {
@@ -136,9 +142,9 @@ template<> struct AssignPoint<Zoltan_Struct> {
         Zoltan_LB_Point_Assign(zlb, &pos_in_double.front(), PE);
     }
 
-    void operator() (Zoltan_Struct* zlb, const elements::Element<2>* e, int* PE) {
-        auto pos_in_double = get_as_double_array<2>(e->position);
-        Zoltan_LB_Point_Assign(zlb, &pos_in_double.front(), PE);
+    void operator() (Zoltan_Struct* zlb, Real x, Real y, Real z, int* PE) {
+        double pos[3] = {x,y,z};
+        Zoltan_LB_Point_Assign(zlb, pos, PE);
     }
 };
 

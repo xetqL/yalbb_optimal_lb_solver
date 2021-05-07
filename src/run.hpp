@@ -68,7 +68,7 @@ void run(const YALBB& yalbb, sim_param_t* params, Experiment experimentGenerator
     std::vector<experiment::Config> configs {};
 
     /** Burn CPU cycle */
-    {
+    if(false) {
         MPI_Comm APP_COMM;
         MPI_Comm_dup(MPI_COMM_WORLD, &APP_COMM);
         auto zlb = createLB();
