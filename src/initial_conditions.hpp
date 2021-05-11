@@ -623,7 +623,7 @@ namespace vel {
 
         std::array<Real, N> operator()(std::mt19937 &gen, const std::array<Real, N>& pos) {
             using namespace vec::generic;
-            Real strength = uniform(gen);
+            Real strength = temp;//uniform(gen);
             std::array<Real, N> vec = expand_from - pos;
             return normalize(vec) * strength;
         }

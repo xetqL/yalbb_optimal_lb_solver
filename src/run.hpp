@@ -92,12 +92,10 @@ void run(const YALBB& yalbb, sim_param_t* params, Experiment experimentGenerator
     experiment::load_configs(configs, *params);
 
     for(auto& cfg : configs) {
-
         auto& [preamble, config_name, params, criterion] = cfg;
         auto zlb = createLB();
         auto[mesh_data, probe, exp_name] = experimentGenerator.template init(zlb, getPositionPtrFunc, preamble);
         const std::string simulation_name = fmt("%s_%s_%i/%i/%i/%s/%s",getLBName(),params.simulation_name,params.npart,params.seed, params.id, exp_name,config_name);
-
         simulate<N>(zlb, mesh_data.get(), criterion, boundary, fWrapper, &params, &probe, datatype, APP_COMM, simulation_name);
         destroyLB(zlb);
     }

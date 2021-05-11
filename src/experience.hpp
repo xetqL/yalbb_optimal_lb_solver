@@ -48,7 +48,7 @@ using Config = std::tuple<std::string, std::string, sim_param_t, lb::Criterion>;
 void load_configs(std::vector<Config>& configs, sim_param_t params){
 
     configs.emplace_back("BBCriterion",  "BBCriterion",      params, lb::BastienMenon{});
-    return;
+    return ;
 
     configs.emplace_back("Static",              "Static",           params, lb::Static{});
 
@@ -57,6 +57,7 @@ void load_configs(std::vector<Config>& configs, sim_param_t params){
     configs.emplace_back("OfflineMenon", "OMenon",           params, lb::OfflineMenon{});
     configs.emplace_back("PositivMenon", "PMenon",           params, lb::ImprovedMenonNoMax{});
     configs.emplace_back("ZhaiMenon",    "ZMenon",           params, lb::ZhaiMenon{});
+    configs.emplace_back("BBCriterion",  "BBCriterion",      params, lb::BastienMenon{});
 
     // Periodic
     configs.emplace_back("Periodic 1",       "Periodic_1",    params, lb::Periodic{1});
