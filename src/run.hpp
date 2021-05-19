@@ -75,6 +75,7 @@ void run(const YALBB& yalbb, sim_param_t* params, Experiment experimentGenerator
         simulate<N>(zlb, mesh_data.get(), lb::Static{}, boundary, fWrapper, &burn_params, &probe, datatype, APP_COMM, "BURN");
         destroyLB(zlb);
     }
+
     std::string directory = fmt("%s_%s_%i/%i/%i/%i/", getLBName(), params->simulation_name, params->npart, params->seed, nproc, params->id);
 
     if(params->nb_best_path) {

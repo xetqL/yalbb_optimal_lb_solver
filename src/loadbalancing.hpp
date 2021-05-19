@@ -81,6 +81,7 @@ template<> struct DoPartition<norcb::NoRCB> {
 template<> struct DoPartition<Zoltan_Struct> {
     template<class MD, class GetPosPtrF>
     void operator() (Zoltan_Struct* lb, MD* md, GetPosPtrF getPositionPtrFunc) {
+        zoltan_fn_init(lb, md);
         Zoltan_Do_LB(lb);
     }
 };
