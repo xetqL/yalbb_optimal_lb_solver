@@ -22,20 +22,12 @@
 
 template<int N, class LoadBalancer, class Experiment, class BinaryForceFunc, class UnaryForceFunc, class LBCreatorFunc>
 void run(const YALBB& yalbb, sim_param_t* params, Experiment experimentGenerator, Boundary<N> boundary, BinaryForceFunc binaryFunc, UnaryForceFunc unaryFF, LBCreatorFunc createLB) {
-    int nproc;
-    float ver;
-
     std::cout << std::fixed << std::setprecision(6);
 
     auto APP_COMM = yalbb.comm;
 
-    sim_param_t burn_params = *params;
-
-    burn_params.npart   = static_cast<int>(burn_params.npart * 0.1);
-    burn_params.nframes = 1;
-    burn_params.npframe = 5;
-    burn_params.monitor = false;
-    burn_params.record  = false;
+    int nproc;
+    MPI_Comm_size(APP_COMM, &nproc);
 
     const std::array<Real, 2*N> simbox      = get_simbox<N>(params->simsize);
     const std::array<Real,   N> simlength   = get_box_width<N>(simbox);
@@ -69,6 +61,13 @@ void run(const YALBB& yalbb, sim_param_t* params, Experiment experimentGenerator
 
     /** Burn CPU cycle */
      {
+        sim_param_t burn_params = *params;
+        burn_params.npart   = static_cast<int>(burn_params.npart * 0.1);
+        burn_params.nframes = 1;
+        burn_params.npframe = 5;
+        burn_params.monitor = false;
+        burn_params.record  = false;
+
         MPI_Comm APP_COMM;
         MPI_Comm_dup(MPI_COMM_WORLD, &APP_COMM);
         auto zlb = createLB();
@@ -76,13 +75,14 @@ void run(const YALBB& yalbb, sim_param_t* params, Experiment experimentGenerator
         simulate<N>(zlb, mesh_data.get(), lb::Static{}, boundary, fWrapper, &burn_params, &probe, datatype, APP_COMM, "BURN");
         destroyLB(zlb);
     }
+    std::string directory = fmt("%s_%s_%i/%i/%i/%i/", getLBName(), params->simulation_name, params->npart, params->seed, nproc, params->id);
 
     if(params->nb_best_path) {
         Probe solution_stats(nproc);
         std::vector<int> opt_scenario{};
         auto zlb = createLB();
         auto[mesh_data, probe, exp_name] = experimentGenerator.template init(zlb, getPositionPtrFunc, "A*\n");
-        const std::string simulation_name = fmt("%s_%s_%i/%i/%i/%s/Astar", getLBName(), params->simulation_name, params->npart, params->seed, params->id, exp_name);
+        const std::string simulation_name = fmt("%s/%s/Astar", directory, exp_name);
         std::tie(solution_stats,opt_scenario) = simulate_shortest_path<N>(zlb, mesh_data.get(), boundary, fWrapper, params, datatype,
                                                                           lb::Copier<LoadBalancer>{},
                                                                           lb::Destroyer<LoadBalancer>{}, APP_COMM, simulation_name);
@@ -94,8 +94,8 @@ void run(const YALBB& yalbb, sim_param_t* params, Experiment experimentGenerator
     for(auto& cfg : configs) {
         auto& [preamble, config_name, params, criterion] = cfg;
         auto zlb = createLB();
-        auto[mesh_data, probe, exp_name] = experimentGenerator.template init(zlb, getPositionPtrFunc, preamble);
-        const std::string simulation_name = fmt("%s_%s_%i/%i/%i/%s/%s",getLBName(),params.simulation_name,params.npart,params.seed, params.id, exp_name,config_name);
+        auto[mesh_data, probe, exp_name]  = experimentGenerator.template init(zlb, getPositionPtrFunc, preamble);
+        const std::string simulation_name = fmt("%s/%s/%s", directory, exp_name, config_name);
         simulate<N>(zlb, mesh_data.get(), criterion, boundary, fWrapper, &params, &probe, datatype, APP_COMM, simulation_name);
         destroyLB(zlb);
     }
