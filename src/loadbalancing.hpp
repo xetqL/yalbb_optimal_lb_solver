@@ -68,14 +68,10 @@ template<> struct DoPartition<StripeLB> {
 template<> struct DoPartition<norcb::NoRCB> {
     template<class MD, class GetPosPtrF>
     void operator() (norcb::NoRCB* lb, MD* md, GetPosPtrF getPositionPtrFunc) {
-        auto partitions = norcb::parallel::partition<Real>(lb->world_size, md->els.begin(), md->els.end(), lb->domain,
-                                                           elements::register_datatype<2>(), lb->comm,
-                                                           [](auto* e){ return &(e->position);},
-                                                           [](auto* e){ return &(e->velocity);} );
-        for(auto i = 0; i < lb->world_size; ++i) {
-            auto& p = partitions.at(i);
-            lb->subdomains.at(i) = std::get<0>(p);
-        }
+        norcb::partition<Real>(lb, lb->world_size, md->els.begin(), md->els.end(),
+                               elements::register_datatype<2>(), lb->comm,
+                               [](auto* e){ return &(e->position);},
+                               [](auto* e){ return &(e->velocity);} );
     }
 };
 template<> struct DoPartition<Zoltan_Struct> {
