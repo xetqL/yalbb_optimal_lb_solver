@@ -33,7 +33,6 @@ int main(int argc, char** argv) {
         });
     }
 
-/*
     run<N, Zoltan_Struct>(yalbb, params.get(), exp, boundary, binaryForce, unaryForce, [APP_COMM=MPI_COMM_WORLD, &params](){
         float ver;
         if(Zoltan_Initialize(0, nullptr, &ver) != ZOLTAN_OK) {
@@ -43,6 +42,5 @@ int main(int argc, char** argv) {
         return zoltan_create_wrapper(APP_COMM);
     });
 
-*/
     return EXIT_SUCCESS;
 }

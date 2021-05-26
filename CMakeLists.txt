@@ -28,7 +28,7 @@ if("${CMAKE_BUILD_TYPE}" STREQUAL Profile)
 endif()
 
 # Set build directory
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # find sources
 file(GLOB SRC src/*.cpp)

@@ -47,6 +47,8 @@ public:
 using Config = std::tuple<std::string, std::string, sim_param_t, lb::Criterion>;
 void load_configs(std::vector<Config>& configs, sim_param_t params) {
 
+    configs.emplace_back("Periodic 1",       "Periodic_1",    params, lb::Periodic{1});
+    return;
     configs.emplace_back("Static",       "Static",           params, lb::Static{});
 
     // Automatic criterion
@@ -137,13 +139,14 @@ protected:
     void setup(MESH_DATA<elements::Element<N>> *mesh_data) override {
         generate_random_particles<N>(mesh_data, this->rank, this->params->seed, this->params->npart,
                  pos::UniformInCube<N>(this->simbox),
-                 vel::Uniform<N>(this->params->T0));
+                 vel::Uniform<N>(this->params->T0), MPI_COMM_WORLD);
     }
 public:
     UniformCube(const BoundingBox<N> &simbox, const std::unique_ptr<TParam>& params, MPI_Datatype datatype,
                      MPI_Comm appComm, const std::string &name)
             : Experiment<N, TParam>(simbox, params, datatype, appComm, name) {}
 };
+
 template<unsigned N, class TParam> class ContractSphere   : public Experiment<N, TParam>{
 protected:
     void setup(MESH_DATA<elements::Element<N>> *mesh_data) override {

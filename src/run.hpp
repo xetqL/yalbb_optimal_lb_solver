@@ -60,7 +60,7 @@ void run(const YALBB& yalbb, sim_param_t* params, Experiment experimentGenerator
     std::vector<experiment::Config> configs {};
 
     /** Burn CPU cycle */
-     {
+     if(params->burn) {
         sim_param_t burn_params = *params;
         burn_params.npart   = static_cast<int>(burn_params.npart * 0.1);
         burn_params.nframes = 1;
