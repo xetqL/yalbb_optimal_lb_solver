@@ -11,6 +11,14 @@ int main(int argc, char** argv) {
     Parser parser;
     std::unique_ptr<param_t> params = parser.get_params(argc, argv);
 
+    // benchmark params
+    params->nframes = 1;
+    params->npframe = 1;
+    params->record  = false;
+    params->monitor = true;
+    params->burn    = true;
+    params->nb_best_path = 0;
+
     if (!params) { exit(EXIT_FAILURE); }
 
     const std::array<Real, 2*N> simbox = get_simbox<N>(params->simsize);
