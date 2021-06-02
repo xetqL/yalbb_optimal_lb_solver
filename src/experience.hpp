@@ -124,9 +124,9 @@ public:
 
         size_t n_els = mesh_data->els.size(), max_els, tot_els;
 
-        MPI_Allreduce(MPI_IN_PLACE, &lbtime,1, par::get_mpi_type<decltype(lbtime)>(),MPI_MAX, APP_COMM);
-        MPI_Allreduce(&n_els, &tot_els,     1, par::get_mpi_type<size_t>(),          MPI_SUM, APP_COMM);
-        MPI_Allreduce(&n_els, &max_els,     1, par::get_mpi_type<size_t>(),          MPI_MAX, APP_COMM);
+        MPI_Allreduce(MPI_IN_PLACE, &lbtime, 1, par::get_mpi_type<decltype(lbtime)>(), MPI_MAX, APP_COMM);
+        MPI_Allreduce(&n_els,       &tot_els,1, par::get_mpi_type<size_t>(),           MPI_SUM, APP_COMM);
+        MPI_Allreduce(&n_els,       &max_els,1, par::get_mpi_type<size_t>(),           MPI_MAX, APP_COMM);
 
         probe.push_load_balancing_time(lbtime);
         Real efficiency = (static_cast<Real>(tot_els) / static_cast<Real>(nproc)) / static_cast<Real>(max_els);
