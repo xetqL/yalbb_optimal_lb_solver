@@ -81,7 +81,6 @@ template<> struct DoPartition<Zoltan_Struct> {
         Zoltan_Do_LB(lb);
     }
 };
-
 template<> struct IntersectDomain<norcb::NoRCB> {
     Real rc {};
     void operator() (norcb::NoRCB* zlb, double x1, double y1, double z1, double x2, double y2, double z2, int* PEs, int* num_found) const {
@@ -105,10 +104,7 @@ template<> struct IntersectDomain<Zoltan_Struct> {
     Real rc;
     void operator() (Zoltan_Struct* zlb, double x1, double y1, double z1, double x2, double y2, double z2, int* PEs, int* num_found) {
         START_TIMER(functime);
-        auto rc_x = 3.0 * (x2-x1);
-        auto rc_y = (y2-y1) / 2;
-        auto rc_z = (z2-z1) / 2;
-        Zoltan_LB_Box_Assign(zlb, x1-rc_x, y1-rc_x, z1, x2+rc_x, y2+rc_x, z2, PEs, num_found);
+        Zoltan_LB_Box_Assign(zlb, x1, y1, z1, x2, y2, z2, PEs, num_found);
         END_TIMER(functime);
     }
 };
@@ -122,6 +118,7 @@ template<> struct AssignPoint<norcb::NoRCB> {
         zlb->get_owner(x, y, PE);
     }
 };
+
 template<> struct AssignPoint<StripeLB> {
     template<class El>
     void operator() (StripeLB* zlb, const El* e, int* PE) {

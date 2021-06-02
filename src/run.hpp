@@ -25,9 +25,7 @@ void run(const YALBB& yalbb, sim_param_t* params, Experiment experimentGenerator
     std::cout << std::fixed << std::setprecision(6);
 
     auto APP_COMM = yalbb.comm;
-
-    int nproc;
-    MPI_Comm_size(APP_COMM, &nproc);
+    auto nproc = yalbb.comm_size;
 
     const std::array<Real, 2*N> simbox      = get_simbox<N>(params->simsize);
     const std::array<Real,   N> simlength   = get_box_width<N>(simbox);
@@ -59,31 +57,42 @@ void run(const YALBB& yalbb, sim_param_t* params, Experiment experimentGenerator
 
     std::vector<experiment::Config> configs {};
 
+    std::string directory = fmt("%s_%s_%i/%i/%i/%i/", getLBName(), params->simulation_name, params->npart, params->seed, nproc, params->id);
+    const auto exp_name = experimentGenerator.get_exp_name();
+
     /** Burn CPU cycle */
      if(params->burn) {
-        sim_param_t burn_params = *params;
-        burn_params.npart   = static_cast<int>(burn_params.npart * 0.1);
-        burn_params.nframes = 1;
-        burn_params.npframe = 5;
-        burn_params.monitor = false;
-        burn_params.record  = false;
+         sim_param_t burn_params = *params;
 
-        MPI_Comm APP_COMM;
-        MPI_Comm_dup(MPI_COMM_WORLD, &APP_COMM);
-        auto zlb = createLB();
-        auto[mesh_data, probe, exp_name] = experimentGenerator.init(zlb, getPositionPtrFunc, "Burn CPU Cycle:");
-        simulate<N>(zlb, mesh_data.get(), lb::Static{}, boundary, fWrapper, &burn_params, &probe, datatype, APP_COMM, "BURN");
-        destroyLB(zlb);
+         const std::string simulation_name = fmt("%s/%s/%s", directory, exp_name, "burn_cpu");
+         std::string folder_prefix = fmt("%s/%s", "logs", simulation_name);
+
+         simulation::MonitoringSession report_session {!yalbb.my_rank, burn_params.record, folder_prefix, "", burn_params.monitor};
+
+         burn_params.npart   = static_cast<int>(burn_params.npart * 0.1);
+         burn_params.nframes = 1;
+         burn_params.npframe = 5;
+         burn_params.monitor = false;
+         burn_params.record  = false;
+
+         MPI_Comm APP_COMM;
+         MPI_Comm_dup(MPI_COMM_WORLD, &APP_COMM);
+         auto zlb = createLB();
+         auto[mesh_data, probe] = experimentGenerator.init(zlb, getPositionPtrFunc, "Burn CPU Cycle:", report_session);
+         simulate<N>(zlb, mesh_data.get(), lb::Static{}, boundary, fWrapper, &burn_params, &probe, datatype, report_session, APP_COMM, simulation_name);
+         destroyLB(zlb);
     }
 
-    std::string directory = fmt("%s_%s_%i/%i/%i/%i/", getLBName(), params->simulation_name, params->npart, params->seed, nproc, params->id);
 
     if(params->nb_best_path) {
+        const std::string simulation_name = fmt("%s/%s/Astar", directory, exp_name);
+        std::string folder_prefix = fmt("%s/%s", "logs", simulation_name);
+        simulation::MonitoringSession report_session {!yalbb.my_rank, params->record, folder_prefix, "", params->monitor};
+
         Probe solution_stats(nproc);
         std::vector<int> opt_scenario{};
         auto zlb = createLB();
-        auto[mesh_data, probe, exp_name] = experimentGenerator.template init(zlb, getPositionPtrFunc, "A*\n");
-        const std::string simulation_name = fmt("%s/%s/Astar", directory, exp_name);
+        auto[mesh_data, probe] = experimentGenerator.template init(zlb, getPositionPtrFunc, "A*\n", report_session);
         std::tie(solution_stats,opt_scenario) = simulate_shortest_path<N>(zlb, mesh_data.get(), boundary, fWrapper, params, datatype,
                                                                           lb::Copier<LoadBalancer>{},
                                                                           lb::Destroyer<LoadBalancer>{}, APP_COMM, simulation_name);
@@ -94,10 +103,16 @@ void run(const YALBB& yalbb, sim_param_t* params, Experiment experimentGenerator
 
     for(auto& cfg : configs) {
         auto& [preamble, config_name, params, criterion] = cfg;
-        auto zlb = createLB();
-        auto[mesh_data, probe, exp_name]  = experimentGenerator.template init(zlb, getPositionPtrFunc, preamble);
         const std::string simulation_name = fmt("%s/%s/%s", directory, exp_name, config_name);
-        simulate<N>(zlb, mesh_data.get(), criterion, boundary, fWrapper, &params, &probe, datatype, APP_COMM, simulation_name);
+        std::string folder_prefix = fmt("%s/%s", "logs", simulation_name);
+        simulation::MonitoringSession report_session {!yalbb.my_rank, params.record, folder_prefix, "", params.monitor};
+
+        auto zlb = createLB();
+
+        auto[mesh_data, probe]  = experimentGenerator.init(zlb, getPositionPtrFunc, preamble, report_session);
+
+        simulate<N>(zlb, mesh_data.get(), criterion, boundary, fWrapper, &params, &probe, datatype, report_session, APP_COMM, simulation_name);
+
         destroyLB(zlb);
     }
 }
