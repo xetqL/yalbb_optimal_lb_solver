@@ -132,7 +132,7 @@ public:
         Real efficiency = (static_cast<Real>(tot_els) / static_cast<Real>(nproc)) / static_cast<Real>(max_els);
         probe.push_load_balancing_parallel_efficiency(efficiency);
 
-        report_session.report(simulation::LoadBalancingCost, lbtime);
+        report_session.report(simulation::LoadBalancingCost, lbtime, " ");
 
         probe.set_balanced(true);
 

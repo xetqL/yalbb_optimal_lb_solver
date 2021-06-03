@@ -17,6 +17,7 @@ int main(int argc, char** argv) {
     params->record  = false;
     params->monitor = true;
     params->burn    = true;
+
     params->nb_best_path = 0;
 
     if (!params) { exit(EXIT_FAILURE); }
