@@ -812,7 +812,7 @@ void generate_random_particles(MESH_DATA<elements::Element<N>>* mesh,
     int wsize;
     MPI_Comm_size(comm, &wsize);
     unsigned part_to_gen = npart / wsize;
-    mesh->els.reserve(part_to_gen);
+    mesh->els.reserve(mesh->size() + part_to_gen);
     std::mt19937 my_gen_vel(seed + rank);
     std::mt19937 my_gen_pos(seed + rank + wsize);
     for(int i = 0;i < part_to_gen; ++i) {

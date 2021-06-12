@@ -203,6 +203,38 @@ public:
             : Experiment<N, TParam>(simbox, params, datatype, appComm, name) {}
 };
 
+template<unsigned N, class TParam> class FourExpandingCircles : public Experiment<N, TParam> {
+protected:
+    void setup(MESH_DATA<elements::Element<N>> *mesh_data) override {
+
+        std::array<Real, N> sphere_center_1 = {this->params->simsize / 3.0,       this->params->simsize / 3.0};
+        std::array<Real, N> sphere_center_2 = {2.0 * this->params->simsize / 3.0, this->params->simsize / 3.0};
+        std::array<Real, N> sphere_center_3 = {this->params->simsize / 3.0, 2.0 * this->params->simsize / 3.0};
+        std::array<Real, N> sphere_center_4 = {2.0 * this->params->simsize / 3.0, 2.0 * this->params->simsize / 3.0};
+
+        generate_random_particles<N>(mesh_data, this->rank, this->params->seed, this->params->npart / 4,
+                                     pos::UniformInSphere<N>(this->params->simsize / 6, sphere_center_1),
+                                     vel::ExpandFromPoint<N>(this->params->T0, sphere_center_1));
+
+        generate_random_particles<N>(mesh_data, this->rank, this->params->seed, this->params->npart / 4,
+                                     pos::UniformInSphere<N>(this->params->simsize / 6, sphere_center_2),
+                                     vel::ExpandFromPoint<N>(this->params->T0, sphere_center_2));
+
+        generate_random_particles<N>(mesh_data, this->rank, this->params->seed, this->params->npart / 4,
+                                     pos::UniformInSphere<N>(this->params->simsize / 6, sphere_center_3),
+                                     vel::ExpandFromPoint<N>(this->params->T0, sphere_center_3));
+
+        generate_random_particles<N>(mesh_data, this->rank, this->params->seed, this->params->npart / 4,
+                                     pos::UniformInSphere<N>(this->params->simsize / 6, sphere_center_4),
+                                     vel::ExpandFromPoint<N>(this->params->T0, sphere_center_4));
+
+    }
+public:
+    FourExpandingCircles(const BoundingBox<N> &simbox, const std::unique_ptr<TParam>& params, MPI_Datatype datatype,
+                  MPI_Comm appComm, const std::string &name)
+            : Experiment<N, TParam>(simbox, params, datatype, appComm, name) {}
+};
+
 template<unsigned N, class TParam> class CollidingSpheres : public Experiment<N, TParam> {
 protected:
     void setup(MESH_DATA<elements::Element<N>> *mesh_data) override {
