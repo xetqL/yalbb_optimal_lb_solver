@@ -47,7 +47,7 @@ public:
 using Config = std::tuple<std::string, std::string, sim_param_t, lb::Criterion>;
 void load_configs(std::vector<Config>& configs, sim_param_t params) {
 
-    configs.emplace_back("Periodic 1",       "Periodic_1",    params, lb::Periodic{1});
+    configs.emplace_back("BBCriterion",  "BBCriterion",      params, lb::BastienMenon{});
     return;
     configs.emplace_back("Static",       "Static",           params, lb::Static{});
 
@@ -170,6 +170,7 @@ public:
                      MPI_Comm appComm, const std::string &name)
             : Experiment<N, TParam>(simbox, params, datatype, appComm, name) {}
 };
+
 template<unsigned N, class TParam> class ExpandSphere     : public Experiment<N, TParam> {
 protected:
     void setup(MESH_DATA<elements::Element<N>> *mesh_data) override {
@@ -185,6 +186,23 @@ public:
                      MPI_Comm appComm, const std::string &name)
             : Experiment<N, TParam>(simbox, params, datatype, appComm, name) {}
 };
+
+template<unsigned N, class TParam> class GravityCircle : public Experiment<N, TParam> {
+protected:
+    void setup(MESH_DATA<elements::Element<N>> *mesh_data) override {
+        std::array<Real, N> box_center{};
+        std::fill(box_center.begin(), box_center.end(), this->params->simsize / 2.0);
+        generate_random_particles<N>(mesh_data, this->rank, this->params->seed, this->params->npart,
+                                     pos::UniformInSphere<N>(this->params->simsize / 2, box_center),
+                                     vel::ParallelToAxis<N, 1>(-this->params->T0));
+
+    }
+public:
+    GravityCircle(const BoundingBox<N> &simbox, const std::unique_ptr<TParam>& params, MPI_Datatype datatype,
+                 MPI_Comm appComm, const std::string &name)
+            : Experiment<N, TParam>(simbox, params, datatype, appComm, name) {}
+};
+
 template<unsigned N, class TParam> class CollidingSpheres : public Experiment<N, TParam> {
 protected:
     void setup(MESH_DATA<elements::Element<N>> *mesh_data) override {
