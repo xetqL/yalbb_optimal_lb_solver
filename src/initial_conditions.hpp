@@ -590,11 +590,12 @@ namespace vel {
         explicit Uniform(Real temp) : temp(temp), uniform(-2.0*temp*temp, 2.0*temp*temp) {  }
 
         std::array<Real, N> operator()(std::mt19937 &gen, const std::array<Real, N>& pos) {
-            std::array<Real, N> v{};
+            std::array<Real, N> v {  };
             std::generate(v.begin(), v.end(), [&](){return uniform(gen);});
             return v;
         }
     };
+
     template<int N>
     struct ExpandFromPoint {
         std::array<Real, N> expand_from;
@@ -613,6 +614,40 @@ namespace vel {
         }
 
     };
+template<class Real> std::array<std::array<Real, 2>, 2> get_rotation_matrix(Real theta) {
+    std::array<std::array<Real, 2>, 2> rotate{};
+    rotate[0][0] =  std::cos(theta);
+    rotate[0][1] = -std::sin(theta);
+    rotate[1][0] =  std::sin(theta);
+    rotate[1][1] =  std::cos(theta);
+    return rotate;
+}
+template<class Real>
+std::pair<Real, Real> rotate(const std::array<std::array<Real, 2>, 2> &matrix, Real x, Real y) {
+    return {matrix[0][0] * x + matrix[0][1] * y, matrix[1][0] * x + matrix[1][1] * y};
+}
+struct PerpendicularTo {
+    std::array<Real, 2> center;
+    Real temp;
+    std::uniform_real_distribution<Real> uniform;
+
+    explicit PerpendicularTo(Real temp, std::array<Real, 2> rotation_point) :
+            temp(temp), uniform(0.0, 2.0*temp*temp), center((rotation_point)) {
+    }
+
+    std::array<Real, 2> operator()(std::mt19937 &gen, const std::array<Real, 2>& pos) {
+        using namespace vec::generic;
+        const auto vec = pos - center;
+        auto v = normalize(vec) * temp;
+        auto rot = get_rotation_matrix(M_PI / 2.0);
+        auto [rx, ry]= rotate(rot, v[0], v[1]);
+        v[0] = rx;
+        v[1] = ry;
+        return v;
+    }
+
+};
+
     template<int N>
     struct ContractToPoint {
         std::array<Real, N> expand_from;
@@ -811,8 +846,14 @@ void generate_random_particles(MESH_DATA<elements::Element<N>>* mesh,
                            int rank, int seed, int npart, PositionFunctor rand_pos, VelocityFunctor rand_vel, MPI_Comm comm) {
     int wsize;
     MPI_Comm_size(comm, &wsize);
-    unsigned part_to_gen = npart / wsize;
-    mesh->els.reserve(mesh->size() + part_to_gen);
+    double per_proc = static_cast<double>(npart) / wsize;
+    unsigned part_to_gen;
+    if(rank == wsize - 1) {
+        part_to_gen = npart - (wsize-1) * static_cast<unsigned>(per_proc);
+    } else {
+        part_to_gen = per_proc;
+    }
+    mesh->els.reserve(mesh->els.size() + part_to_gen);
     std::mt19937 my_gen_vel(seed + rank);
     std::mt19937 my_gen_pos(seed + rank + wsize);
     for(int i = 0;i < part_to_gen; ++i) {

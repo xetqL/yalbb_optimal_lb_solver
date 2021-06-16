@@ -1,8 +1,10 @@
 #include "run.hpp"
 #include "parser.hpp"
-
+#include <yalbb/yalbb.hpp>
 int main(int argc, char** argv) {
     constexpr unsigned N = YALBB_DIMENSION;
+    static_assert(N==2);
+
     YALBB yalbb(argc, argv);
 
     Parser parser;
@@ -14,20 +16,16 @@ int main(int argc, char** argv) {
 
     const auto center = get_box_center<N>(simbox);
 
-    Boundary<N> boundary = CubicalBoundary<N>{simbox, params->bounce};
+    Boundary<N> boundary = SphericalBoundary<N>{center, params->simsize /2};
 
-    auto unaryForce = [center, G=params->G](const auto& element, auto fbegin) {
-        using namespace vec::generic;
-        auto f = normalize(center - element.position) * G;
-        std::copy(f.begin(), f.end(), fbegin);
-    };
+    auto unaryForce = [G=params->G, center] (const auto& element, auto fbegin) {};
 
     auto binaryForce = [eps=params->eps_lj, sig=params->sig_lj, rc=params->rc](const auto* receiver, const auto* source)->std::array<Real, N>{
         auto getPosFunc = [](auto* e) { return &(e->position); } ;
         return lj_compute_force<N>(receiver, source, eps, sig*sig, rc, getPosFunc);
     };
 
-    experiment::Gravitation<N, param_t> exp(simbox, params, elements::register_datatype<N>(), MPI_COMM_WORLD, "Blackhole");
+    experiment::FourExpandingCircles<N, param_t> exp(simbox, params, elements::register_datatype<N>(), yalbb.comm, "ExpandingCircles");
 
     run<N, norcb::NoRCB>(yalbb, params.get(), exp, boundary, "NoRCB", binaryForce, unaryForce, [APP_COMM=yalbb.comm, &params](){
         return new norcb::NoRCB(init_domain<Real>(
@@ -131,9 +129,5 @@ int main(int argc, char** argv) {
 
     return 0;
 }
-
-
-
-
 
 

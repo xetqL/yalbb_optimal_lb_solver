@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.15)
-project(gravity)
+project(blackhole)
 
-add_executable(gravity Blackholes.cpp ${SRC})
+add_executable(blackhole Blackholes.cpp ${SRC})
 
-target_link_libraries(gravity norcb CGAL::CGAL yalbb ${MPI_LIBRARIES} ${ZOLTAN_LIBRARY_PATH} stdc++fs)
+target_link_libraries(blackhole norcb CGAL::CGAL yalbb ${MPI_LIBRARIES} ${ZOLTAN_LIBRARY_PATH} stdc++fs)

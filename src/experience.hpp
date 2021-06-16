@@ -142,6 +142,21 @@ public:
     }
 };
 
+template<unsigned N, class TParam> class Gravitation : public Experiment<N, TParam> {
+protected:
+    void setup(MESH_DATA<elements::Element<N>> *mesh_data) override {
+        std::array<Real, N> box_center {};
+        std::fill(box_center.begin(), box_center.end(), this->params->simsize / 2.0);
+        generate_random_particles<N>(mesh_data, this->rank, this->params->seed, this->params->npart,
+                                     pos::UniformInSphere<N>(this->params->simsize / 2.0, box_center),
+                                     vel::PerpendicularTo(this->params->T0, box_center), MPI_COMM_WORLD);
+    }
+public:
+    Gravitation(const BoundingBox<N> &simbox, const std::unique_ptr<TParam>& params, MPI_Datatype datatype,
+                MPI_Comm appComm, const std::string &name)
+            : Experiment<N, TParam>(simbox, params, datatype, appComm, name) {}
+};
+
 template<unsigned N, class TParam> class UniformCube : public Experiment<N, TParam> {
 protected:
     void setup(MESH_DATA<elements::Element<N>> *mesh_data) override {
@@ -203,35 +218,42 @@ public:
             : Experiment<N, TParam>(simbox, params, datatype, appComm, name) {}
 };
 
-template<unsigned N, class TParam> class FourExpandingCircles : public Experiment<N, TParam> {
+template<unsigned N, class TParam> class ExpandingCircles : public Experiment<N, TParam> {
 protected:
     void setup(MESH_DATA<elements::Element<N>> *mesh_data) override {
-
+        unsigned n_circles = 2;
         std::array<Real, N> sphere_center_1 = {this->params->simsize / 3.0,       this->params->simsize / 3.0};
         std::array<Real, N> sphere_center_2 = {2.0 * this->params->simsize / 3.0, this->params->simsize / 3.0};
-        std::array<Real, N> sphere_center_3 = {this->params->simsize / 3.0, 2.0 * this->params->simsize / 3.0};
-        std::array<Real, N> sphere_center_4 = {2.0 * this->params->simsize / 3.0, 2.0 * this->params->simsize / 3.0};
 
-        generate_random_particles<N>(mesh_data, this->rank, this->params->seed, this->params->npart / 4,
+        generate_random_particles<N>(mesh_data, this->rank, this->params->seed, this->params->npart / n_circles,
                                      pos::UniformInSphere<N>(this->params->simsize / 6, sphere_center_1),
                                      vel::ExpandFromPoint<N>(this->params->T0, sphere_center_1));
-
-        generate_random_particles<N>(mesh_data, this->rank, this->params->seed, this->params->npart / 4,
+        generate_random_particles<N>(mesh_data, this->rank, this->params->seed, this->params->npart / n_circles,
                                      pos::UniformInSphere<N>(this->params->simsize / 6, sphere_center_2),
                                      vel::ExpandFromPoint<N>(this->params->T0, sphere_center_2));
-
-        generate_random_particles<N>(mesh_data, this->rank, this->params->seed, this->params->npart / 4,
-                                     pos::UniformInSphere<N>(this->params->simsize / 6, sphere_center_3),
-                                     vel::ExpandFromPoint<N>(this->params->T0, sphere_center_3));
-
-        generate_random_particles<N>(mesh_data, this->rank, this->params->seed, this->params->npart / 4,
-                                     pos::UniformInSphere<N>(this->params->simsize / 6, sphere_center_4),
-                                     vel::ExpandFromPoint<N>(this->params->T0, sphere_center_4));
-
     }
 public:
-    FourExpandingCircles(const BoundingBox<N> &simbox, const std::unique_ptr<TParam>& params, MPI_Datatype datatype,
+    ExpandingCircles(const BoundingBox<N> &simbox, const std::unique_ptr<TParam>& params, MPI_Datatype datatype,
                   MPI_Comm appComm, const std::string &name)
+            : Experiment<N, TParam>(simbox, params, datatype, appComm, name) {}
+};
+template<unsigned N, class TParam> class ContractingCircles : public Experiment<N, TParam> {
+protected:
+    void setup(MESH_DATA<elements::Element<N>> *mesh_data) override {
+        unsigned n_circles = 2;
+        std::array<Real, N> sphere_center_1 = {this->params->simsize / 3.0,       this->params->simsize / 3.0};
+        std::array<Real, N> sphere_center_2 = {2.0 * this->params->simsize / 3.0, this->params->simsize / 3.0};
+
+        generate_random_particles<N>(mesh_data, this->rank, this->params->seed, this->params->npart / n_circles,
+                                     pos::UniformInSphere<N>(this->params->simsize / 10, sphere_center_1),
+                                     vel::ContractToPoint<N>(this->params->T0, sphere_center_1));
+        generate_random_particles<N>(mesh_data, this->rank, this->params->seed, this->params->npart / n_circles,
+                                     pos::UniformInSphere<N>(this->params->simsize / 10, sphere_center_2),
+                                     vel::ContractToPoint<N>(this->params->T0, sphere_center_2));
+    }
+public:
+    ContractingCircles(const BoundingBox<N> &simbox, const std::unique_ptr<TParam>& params, MPI_Datatype datatype,
+                     MPI_Comm appComm, const std::string &name)
             : Experiment<N, TParam>(simbox, params, datatype, appComm, name) {}
 };
 

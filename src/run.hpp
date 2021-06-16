@@ -21,7 +21,8 @@
 #include "experience.hpp"
 
 template<int N, class LoadBalancer, class Experiment, class BinaryForceFunc, class UnaryForceFunc, class LBCreatorFunc>
-void run(const YALBB& yalbb, sim_param_t* params, Experiment experimentGenerator, Boundary<N> boundary, BinaryForceFunc binaryFunc, UnaryForceFunc unaryFF, LBCreatorFunc createLB) {
+void run(const YALBB& yalbb, sim_param_t* params, Experiment experimentGenerator, Boundary<N> boundary, std::string lb_name,
+         BinaryForceFunc binaryFunc, UnaryForceFunc unaryFF, LBCreatorFunc createLB) {
     std::cout << std::fixed << std::setprecision(6);
 
     auto APP_COMM = yalbb.comm;
@@ -48,16 +49,14 @@ void run(const YALBB& yalbb, sim_param_t* params, Experiment experimentGenerator
     auto doLoadBalancingFunc = lb::DoLB<LoadBalancer, decltype(getPositionPtrFunc)>(params->rc, datatype, APP_COMM, getPositionPtrFunc);
     // Destroy this LB struct
     auto destroyLB           = lb::Destroyer<LoadBalancer>{};
-    // Get name of LB
-    auto getLBName           = lb::NameGetter<LoadBalancer>{};
 
     // Wrap everything
     FunctionWrapper fWrapper(getPositionPtrFunc, getVelocityPtrFunc,
-                                unaryFF, binaryFunc, boxIntersectFunc, pointAssignFunc, doLoadBalancingFunc);
+                             unaryFF, binaryFunc, boxIntersectFunc, pointAssignFunc, doLoadBalancingFunc);
 
     std::vector<experiment::Config> configs {};
 
-    std::string directory = fmt("%s_%s_%i/%i/%i/%i/", getLBName(), params->simulation_name, params->npart, params->seed, nproc, params->id);
+    std::string directory = fmt("%s_%s_%i/%i/%i/%i/", lb_name, params->simulation_name, params->npart, params->seed, nproc, params->id);
     const auto exp_name = experimentGenerator.get_exp_name();
 
     /** Burn CPU cycle */
@@ -69,8 +68,8 @@ void run(const YALBB& yalbb, sim_param_t* params, Experiment experimentGenerator
 
          simulation::MonitoringSession report_session {!yalbb.my_rank, burn_params.record, folder_prefix, "", burn_params.monitor};
 
-         burn_params.npart   = static_cast<int>(burn_params.npart * 0.1);
-         burn_params.nframes = 1;
+         burn_params.npart   = static_cast<int>(burn_params.npart);
+         burn_params.nframes = 5;
          burn_params.npframe = 5;
          burn_params.monitor = false;
          burn_params.record  = false;
@@ -82,7 +81,6 @@ void run(const YALBB& yalbb, sim_param_t* params, Experiment experimentGenerator
          simulate<N>(zlb, mesh_data.get(), lb::Static{}, boundary, fWrapper, &burn_params, &probe, datatype, report_session, APP_COMM, simulation_name);
          destroyLB(zlb);
     }
-
 
     if(params->nb_best_path) {
         const std::string simulation_name = fmt("%s/%s/Astar", directory, exp_name);

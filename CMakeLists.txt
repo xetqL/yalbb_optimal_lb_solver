@@ -61,11 +61,19 @@ set(NORCB_INCLUDE_DIR ${CMAKE_CURRENT_LIST_DIR}/NoRCB/include)
 
 include_directories(src ${NORCB_INCLUDE_DIR} yalbb/zupply/src ${MPI_INCLUDE_PATH} yalbb/include ${ZOLTAN_INCLUDE_DIRECTORY} ${UF_INCLUDE_DIR})
 
-add_subdirectory(experiments/Collision)
+# paper JPDC on Optimal Load Balancing
 add_subdirectory(experiments/Compression)
 add_subdirectory(experiments/Expansion)
 add_subdirectory(experiments/ExpansionCompression)
+
+# paper NoRCB
+add_subdirectory(experiments/BlackHoles)
 add_subdirectory(experiments/Gravity)
+add_subdirectory(experiments/ContractingCircles)
+
+# others
+add_subdirectory(experiments/Collision)
 add_subdirectory(experiments/NoRCBBenchmark)
 add_subdirectory(experiments/GravityCircle)
-add_subdirectory(experiments/FourExpandingCircles)
+add_subdirectory(experiments/ExpandingCircles)
+

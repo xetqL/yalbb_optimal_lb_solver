@@ -14,7 +14,7 @@ int main(int argc, char** argv) {
 
     const auto center = get_box_center<N>(simbox);
 
-    Boundary<N> boundary = CubicalBoundary<N>{simbox, params->bounce};
+    Boundary<N> boundary = CubicalBoundary<N>{simbox, 1.0};
 
     auto unaryForce = [G=params->G](const auto& element, auto fbegin) {
         *(fbegin + 1) += -G;
@@ -27,21 +27,104 @@ int main(int argc, char** argv) {
 
     experiment::UniformCube<N, param_t> exp(simbox, params, elements::register_datatype<N>(), MPI_COMM_WORLD, "ExpansionCompresion");
 
-    if constexpr (N<3) {
-        run<N, norcb::NoRCB>(yalbb, params.get(), exp, boundary, binaryForce, unaryForce, [APP_COMM=MPI_COMM_WORLD, &params](){
-            auto lb_ptr = new norcb::NoRCB(norcb::init_domain<Real>(
-                    -200, -200, 200, 200), APP_COMM);
-            return lb_ptr;
-        });
-    }
+    run<N, norcb::NoRCB>(yalbb, params.get(), exp, boundary, "NoRCB", binaryForce, unaryForce, [APP_COMM=yalbb.comm, &params](){
+        return new norcb::NoRCB(init_domain<Real>(
+                -params->simsize, -params->simsize, 2*params->simsize, 2*params->simsize), APP_COMM);
+    });
 
-    run<N, Zoltan_Struct>(yalbb, params.get(), exp, boundary, binaryForce, unaryForce, [APP_COMM=MPI_COMM_WORLD](){
+    run<N, rcb::RCB>(yalbb, params.get(), exp, boundary, "CustomRCB", binaryForce, unaryForce, [APP_COMM=yalbb.comm, &params](){
+        return new rcb::RCB(init_domain<Real>(
+                -params->simsize, -params->simsize, 2*params->simsize, 2*params->simsize), APP_COMM);
+    });
+
+    run<N, Zoltan_Struct>(yalbb, params.get(), exp, boundary, "HSFC", binaryForce, unaryForce, [APP_COMM=yalbb.comm](){
         float ver;
+
+        const char* LB_METHOD = "HSFC";
+
         if(Zoltan_Initialize(0, nullptr, &ver) != ZOLTAN_OK) {
             MPI_Finalize();
             exit(EXIT_FAILURE);
         }
-        return zoltan_create_wrapper(APP_COMM);
+
+        auto zz = Zoltan_Create(APP_COMM);
+
+        Zoltan_Set_Param(zz, "DEBUG_LEVEL", "0");
+        Zoltan_Set_Param(zz, "LB_METHOD", LB_METHOD);
+        Zoltan_Set_Param(zz, "DETERMINISTIC", "1");
+        Zoltan_Set_Param(zz, "NUM_GID_ENTRIES", "1");
+
+        Zoltan_Set_Param(zz, "NUM_LID_ENTRIES", "1");
+        Zoltan_Set_Param(zz, "OBJ_WEIGHT_DIM", "0");
+        Zoltan_Set_Param(zz, "RCB_REUSE", "1");
+        Zoltan_Set_Param(zz, "RETURN_LISTS", "ALL");
+
+        Zoltan_Set_Param(zz, "RCB_OUTPUT_LEVEL", "0");
+        Zoltan_Set_Param(zz, "KEEP_CUTS", "1");
+
+        Zoltan_Set_Param(zz, "AUTO_MIGRATE", "FALSE");
+
+        return zz;
+    });
+
+    run<N, Zoltan_Struct>(yalbb, params.get(), exp, boundary, "RCB", binaryForce, unaryForce, [APP_COMM=yalbb.comm](){
+        float ver;
+
+        const char* LB_METHOD = "RCB";
+
+        if(Zoltan_Initialize(0, nullptr, &ver) != ZOLTAN_OK) {
+            MPI_Finalize();
+            exit(EXIT_FAILURE);
+        }
+
+        auto zz = Zoltan_Create(APP_COMM);
+
+        Zoltan_Set_Param(zz, "DEBUG_LEVEL", "0");
+        Zoltan_Set_Param(zz, "LB_METHOD", LB_METHOD);
+        Zoltan_Set_Param(zz, "DETERMINISTIC", "1");
+        Zoltan_Set_Param(zz, "NUM_GID_ENTRIES", "1");
+
+        Zoltan_Set_Param(zz, "NUM_LID_ENTRIES", "1");
+        Zoltan_Set_Param(zz, "OBJ_WEIGHT_DIM", "0");
+        Zoltan_Set_Param(zz, "RCB_REUSE", "1");
+        Zoltan_Set_Param(zz, "RETURN_LISTS", "ALL");
+
+        Zoltan_Set_Param(zz, "RCB_OUTPUT_LEVEL", "0");
+        Zoltan_Set_Param(zz, "KEEP_CUTS", "1");
+
+        Zoltan_Set_Param(zz, "AUTO_MIGRATE", "FALSE");
+
+        return zz;
+    });
+
+    run<N, Zoltan_Struct>(yalbb, params.get(), exp, boundary, "RIB", binaryForce, unaryForce, [APP_COMM=yalbb.comm](){
+        float ver;
+
+        const char* LB_METHOD = "RIB";
+
+        if(Zoltan_Initialize(0, nullptr, &ver) != ZOLTAN_OK) {
+            MPI_Finalize();
+            exit(EXIT_FAILURE);
+        }
+
+        auto zz = Zoltan_Create(APP_COMM);
+
+        Zoltan_Set_Param(zz, "DEBUG_LEVEL", "0");
+        Zoltan_Set_Param(zz, "LB_METHOD", LB_METHOD);
+        Zoltan_Set_Param(zz, "DETERMINISTIC", "1");
+        Zoltan_Set_Param(zz, "NUM_GID_ENTRIES", "1");
+
+        Zoltan_Set_Param(zz, "NUM_LID_ENTRIES", "1");
+        Zoltan_Set_Param(zz, "OBJ_WEIGHT_DIM", "0");
+        Zoltan_Set_Param(zz, "RCB_REUSE", "1");
+        Zoltan_Set_Param(zz, "RETURN_LISTS", "ALL");
+
+        Zoltan_Set_Param(zz, "RCB_OUTPUT_LEVEL", "0");
+        Zoltan_Set_Param(zz, "KEEP_CUTS", "1");
+
+        Zoltan_Set_Param(zz, "AUTO_MIGRATE", "FALSE");
+
+        return zz;
     });
 
     return 0;

@@ -12,16 +12,14 @@
 
 namespace lb {
 
-template<class InnerLoadBalancer, class Element>
-class LoadBalancer {
-    InnerLoadBalancer* zlb;
-public:
-    virtual void init() = 0;
+struct LoadBalancer {
+    std::string lb_method;
+    virtual void init(std::any MD) = 0;
     virtual LoadBalancer* clone() = 0;
-    virtual void partition(std::vector<Element>& elements) = 0;
+    virtual void partition(std::any elements) = 0;
     virtual void intersect(Real rc, double x1, double y1, double z1, double x2, double y2, double z2, int* PEs, int* num_found) = 0;
-    virtual void assign(const Element* el, int* PE) = 0;
-    virtual std::string name() = 0;
+    virtual void assign(std::any el, int* PE) = 0;
+    std::string get_name() { return lb_method; }
 };
 
 template<class T=void> struct InitLB {};                        // Init load balancer functor
@@ -33,11 +31,120 @@ template<class T=void> struct IntersectDomain {}; // Domain intersection functor
 template<class T=void> struct AssignPoint {};                   // Point assignation functor
 template<class T=void> struct NameGetter {};                    // Point assignation functor
 
+template<unsigned N>
+struct ZoltanLoadBalancer : public LoadBalancer
+{
+    Zoltan_Struct* zlb;
+
+    ZoltanLoadBalancer(Zoltan_Struct* from, const std::string& method){
+        zlb = Zoltan_Copy(from);
+        lb_method = method;
+    }
+
+    ZoltanLoadBalancer(const char* method, MPI_Comm APP_COMM) {
+        lb_method = std::string(method);
+        float ver;
+        if(Zoltan_Initialize(0, nullptr, &ver) != ZOLTAN_OK) {
+            MPI_Finalize();
+            exit(EXIT_FAILURE);
+        }
+        zlb = Zoltan_Create(APP_COMM);
+        Zoltan_Set_Param(zlb, "DEBUG_LEVEL", "0");
+        Zoltan_Set_Param(zlb, "LB_METHOD", lb_method.c_str());
+        Zoltan_Set_Param(zlb, "DETERMINISTIC", "1");
+        Zoltan_Set_Param(zlb, "NUM_GID_ENTRIES", "1");
+
+        Zoltan_Set_Param(zlb, "NUM_LID_ENTRIES", "1");
+        Zoltan_Set_Param(zlb, "OBJ_WEIGHT_DIM", "0");
+        Zoltan_Set_Param(zlb, "RCB_REUSE", "1");
+        Zoltan_Set_Param(zlb, "RETURN_LISTS", "ALL");
+
+        Zoltan_Set_Param(zlb, "RCB_OUTPUT_LEVEL", "0");
+        Zoltan_Set_Param(zlb, "KEEP_CUTS", "1");
+
+        Zoltan_Set_Param(zlb, "AUTO_MIGRATE", "FALSE");
+    }
+
+    ~ZoltanLoadBalancer(){
+        Zoltan_Destroy(&zlb);
+    }
+
+    void init(std::any MD) override {
+        zoltan_fn_init(zlb, std::any_cast<MESH_DATA<elements::Element<N>>*>(MD));
+    }
+
+    LoadBalancer *clone() override {
+        return new ZoltanLoadBalancer<N>(zlb, lb_method);
+    }
+
+    void partition(std::any __md) override {
+        auto md = std::any_cast<MESH_DATA<elements::Element<N>>*>(__md);
+        zoltan_fn_init(zlb, md);
+        Zoltan_Do_LB(zlb);
+    }
+
+    void intersect(Real rc, double x1, double y1, double z1, double x2, double y2, double z2, int *PEs,
+                   int *num_found) override {
+        Zoltan_LB_Box_Assign(zlb, x1, y1, z1, x2, y2, z2, PEs, num_found);
+    }
+
+    void assign(std::any el, int *PE) override {
+        auto e = std::any_cast<elements::Element<N>*>(el);
+        auto pos_in_double = get_as_double_array<N>(e->position);
+        Zoltan_LB_Point_Assign(zlb, &pos_in_double.front(), PE);
+    }
+
+};
+/*
+template<unsigned N>
+struct NoRCBLoadBalancer : public LoadBalancer {
+    norcb::NoRCB* zlb;
+
+    NoRCBLoadBalancer(norcb::NoRCB* from, const std::string& method){
+        zlb = norcb::allocate_from(from);
+        lb_method = method;
+    }
+
+    NoRCBLoadBalancer(const char* method, MPI_Comm APP_COMM) {
+        lb_method = std::string(method);
+        zlb = new norcb::NoRCB();
+    }
+
+    ~NoRCBLoadBalancer(){
+        norcb::destroy(zlb);
+    }
+
+    void init(std::any MD) override {
+
+    }
+
+    LoadBalancer *clone() override {
+        return new NoRCBLoadBalancer<N>(zlb, lb_method);
+    }
+
+    void partition(std::any elements) override {
+
+    }
+
+    void intersect(Real rc, double x1, double y1, double z1, double x2, double y2, double z2, int *PEs,
+                   int *num_found) override {
+        auto rc_x = (x2-x1) / 2;
+        auto rc_y = (y2-y1) / 2;
+        auto rc_z = (z2-z1) / 2;
+        zlb->get_neighbors(x2-rc_x,y2-rc_y,z2-rc_z, rc_x, PEs, num_found);
+    }
+
+    void assign(std::any el, int *PE) override {
+
+    }
+};
+*/
+
 template <> struct NameGetter<StripeLB> {
     std::string operator() () { return std::string("StripeLB");}
 };
 template <> struct NameGetter<Zoltan_Struct> {
-    std::string operator() () { return std::string("HSFC");}
+    std::string operator() () { return std::string("HSFC"); }
 };
 template <> struct NameGetter<norcb::NoRCB> {
     std::string operator() () { return std::string("NoRCB");}
