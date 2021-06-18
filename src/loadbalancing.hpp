@@ -211,7 +211,7 @@ template<> struct IntersectDomain<norcb::NoRCB> {
         auto rc_x = (x2-x1) / 2;
         auto rc_y = (y2-y1) / 2;
         auto rc_z = (z2-z1) / 2;
-        zlb->get_neighbors((x2+x1)/2.0,(y2+y1) / 2.0,(z2+z1) / 2.0, 2.0*rc_x, PEs, num_found);
+        zlb->get_neighbors((x2+x1)/2.0,(y2+y1) / 2.0,(z2+z1) / 2.0, 4.0*rc_x, PEs, num_found);
         END_TIMER(functime);
     }
 };
