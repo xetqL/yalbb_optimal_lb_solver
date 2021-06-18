@@ -160,9 +160,10 @@ public:
 template<unsigned N, class TParam> class UniformCube : public Experiment<N, TParam> {
 protected:
     void setup(MESH_DATA<elements::Element<N>> *mesh_data) override {
+        decltype(this->simbox) box = {0.0, this->params->simsize, this->params->simsize/2.0, this->params->simsize};
         generate_random_particles<N>(mesh_data, this->rank, this->params->seed, this->params->npart,
-                 pos::UniformInCube<N>(this->simbox),
-                 vel::Uniform<N>(this->params->T0), MPI_COMM_WORLD);
+                 pos::UniformInCube<N>(box),
+                 vel::Uniform<N>(-this->params->T0), MPI_COMM_WORLD);
     }
 public:
     UniformCube(const BoundingBox<N> &simbox, const std::unique_ptr<TParam>& params, MPI_Datatype datatype,

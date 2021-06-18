@@ -18,7 +18,8 @@ int main(int argc, char** argv) {
 
     auto unaryForce = [center, G=params->G](const auto& element, auto fbegin) {
         using namespace vec::generic;
-        auto f = normalize(center - element.position) * G;
+        auto r2 = norm(center - element.position);
+        auto f = normalize(center - element.position) * (G / r2);
         std::copy(f.begin(), f.end(), fbegin);
     };
 

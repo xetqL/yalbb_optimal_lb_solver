@@ -25,7 +25,7 @@ int main(int argc, char** argv) {
         return lj_compute_force<N>(receiver, source, eps, sig*sig, rc, getPosFunc);
     };
 
-    experiment::UniformCube<N, param_t> exp(simbox, params, elements::register_datatype<N>(), MPI_COMM_WORLD, "ExpansionCompresion");
+    experiment::UniformCube<N, param_t> exp(simbox, params, elements::register_datatype<N>(), MPI_COMM_WORLD, "Gravity");
 
     run<N, norcb::NoRCB>(yalbb, params.get(), exp, boundary, "NoRCB", binaryForce, unaryForce, [APP_COMM=yalbb.comm, &params](){
         return new norcb::NoRCB(init_domain<Real>(
