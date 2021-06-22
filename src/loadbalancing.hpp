@@ -236,17 +236,18 @@ template<> struct IntersectDomain<StripeLB> {
 };
 template<> struct IntersectDomain<Zoltan_Struct> {
     Real rc;
-    void operator() (Zoltan_Struct* zlb, double x1, double y1, double z1, double x2, double y2, double z2, int* PEs, int* num_found) {
-        double bsize = 2.0*rc;
-        Zoltan_LB_Box_Assign(zlb, x1-bsize,
-                                 y1-bsize,
-                                 z1-bsize,
-                                 x2+bsize,
-                                 y2+bsize,
-                                 z2+bsize,
-                             PEs, num_found);
 
+    void operator() (Zoltan_Struct* zlb, double x1, double y1, double z1, double x2, double y2, double z2, int* PEs, int* num_found) {
+        double bsize = 6.0*rc;
+        Zoltan_LB_Box_Assign(zlb, x1-bsize,
+                                  y1-bsize,
+                                  z1-bsize,
+                                  x2+bsize,
+                                  y2+bsize,
+                                  z2+bsize,
+                                  PEs, num_found);
     }
+
 };
 
 template<> struct AssignPoint<norcb::NoRCB> {
