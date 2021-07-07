@@ -247,10 +247,10 @@ protected:
         std::array<Real, N> sphere_center_2 = {2.0 * this->params->simsize / 3.0, this->params->simsize / 2.0};
 
         generate_random_particles<N>(mesh_data, this->rank, this->params->seed, this->params->npart / n_circles,
-                                     pos::UniformInSphere<N>(this->params->simsize / 4, sphere_center_1),
+                                     pos::UniformInSphere<N>(this->params->simsize / 6, sphere_center_1),
                                      vel::ContractToPoint<N>(this->params->T0, sphere_center_1));
         generate_random_particles<N>(mesh_data, this->rank, this->params->seed, this->params->npart / n_circles,
-                                     pos::UniformInSphere<N>(this->params->simsize / 4, sphere_center_2),
+                                     pos::UniformInSphere<N>(this->params->simsize / 6, sphere_center_2),
                                      vel::ContractToPoint<N>(this->params->T0, sphere_center_2));
     }
 public:
