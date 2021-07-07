@@ -259,6 +259,26 @@ public:
             : Experiment<N, TParam>(simbox, params, datatype, appComm, name) {}
 };
 
+template<unsigned N, class TParam> class HalfUniformHalfOrthogonal: public Experiment<N, TParam> {
+protected:
+    void setup(MESH_DATA<elements::Element<N>> *mesh_data) override {
+        unsigned n_box = 2;
+        decltype(this->simbox) box1 = {0.0, this->params->simsize/2.0, 0.0, this->params->simsize / 2.0};
+        decltype(this->simbox) box2 = {this->params->simsize/2.0, this->params->simsize, this->params->simsize/2.0, this->params->simsize};
+
+        generate_random_particles<N>(mesh_data, this->rank, this->params->seed, this->params->npart / n_box,
+                                     pos::UniformInCube<N>(box1),
+                                     vel::Uniform<N>(this->params->T0));
+        generate_random_particles<N>(mesh_data, this->rank, this->params->seed, this->params->npart / n_box,
+                                     pos::UniformInCube<N>(box2),
+                                     vel::ParallelToAxis<N, 0>(-this->params->T0));
+    }
+public:
+    HalfUniformHalfOrthogonal(const BoundingBox<N> &simbox, const std::unique_ptr<TParam>& params, MPI_Datatype datatype,
+                       MPI_Comm appComm, const std::string &name)
+            : Experiment<N, TParam>(simbox, params, datatype, appComm, name) {}
+};
+
 template<unsigned N, class TParam> class CollidingSpheres : public Experiment<N, TParam> {
 protected:
     void setup(MESH_DATA<elements::Element<N>> *mesh_data) override {
