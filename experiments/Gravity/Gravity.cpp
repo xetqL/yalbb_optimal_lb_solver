@@ -32,11 +32,6 @@ int main(int argc, char** argv) {
                 -params->simsize, -params->simsize, 2*params->simsize, 2*params->simsize), APP_COMM);
     });
 
-    run<N, rcb::RCB>(yalbb, params.get(), exp, boundary, "CustomRCB", binaryForce, unaryForce, [APP_COMM=yalbb.comm, &params](){
-        return new rcb::RCB(init_domain<Real>(
-                -params->simsize, -params->simsize, 2*params->simsize, 2*params->simsize), APP_COMM);
-    });
-
     run<N, Zoltan_Struct>(yalbb, params.get(), exp, boundary, "HSFC", binaryForce, unaryForce, [APP_COMM=yalbb.comm](){
         float ver;
 
