@@ -1,7 +1,7 @@
 [submodule "yalbb"]
 	path = yalbb
 	url = https://github.com/xetqL/yalbb.git
-	branch = master
+	branch = refactoring
 [submodule "useful-algorithms"]
 	path = useful-algorithms
 	url = git@github.com:xetql/useful-algorithms.git

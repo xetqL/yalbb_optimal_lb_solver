@@ -155,21 +155,54 @@ namespace elements {
             return "(" + pos + ") " + "(" + idx + ") " + "(" + vel + ") " + std::to_string(this->gid) + ";";
         }
 
+        inline static MPI_Datatype register_datatype() {
+            constexpr const bool UseDoublePrecision = std::is_same<Real, double>::value;
+            MPI_Datatype element_datatype, vec_datatype, oldtype_element[2];
+
+            MPI_Aint offset[2], lb, intex;
+
+            int blockcount_element[2];
+
+            // register particle element type
+            constexpr int array_size = N;
+            auto mpi_raw_datatype = UseDoublePrecision ? MPI_DOUBLE : MPI_FLOAT;
+
+            MPI_Type_contiguous(array_size, mpi_raw_datatype, &vec_datatype);
+
+            MPI_Type_commit(&vec_datatype);
+
+            blockcount_element[0] = 2; //gid, lid
+            blockcount_element[1] = 2; //position, velocity
+
+            oldtype_element[0] = MPI_LONG_LONG;
+            oldtype_element[1] = vec_datatype;
+
+            MPI_Type_get_extent(MPI_LONG_LONG, &lb, &intex);
+
+            offset[0] = static_cast<MPI_Aint>(0);
+            offset[1] = blockcount_element[0] * intex;
+
+            MPI_Type_create_struct(2, blockcount_element, offset, oldtype_element, &element_datatype);
+
+            MPI_Type_commit(&element_datatype);
+
+            return element_datatype;
+        }
+
+        inline static std::array<Real, N>* getElementPositionPtr(Element<N>* e){
+            return &(e->position);
+        }
+
+        inline static std::array<Real, N>* getElementVelocityPtr(Element<N>* e){
+            return &(e->velocity);
+        }
     };
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// Particles function definition
     // Getter (position and velocity)
 
-    template<unsigned N>
-    inline std::array<Real, N>* getElementPositionPtr(Element<N>* e){
-        return &(e->position);
-    }
 
-    template<unsigned N>
-    inline std::array<Real, N>* getElementVelocityPtr(Element<N>* e){
-        return &(e->velocity);
-    }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -309,39 +342,7 @@ namespace elements {
             element_id++;
         }
     }
-    template<int N, bool UseDoublePrecision = std::is_same<Real, double>::value>
-    MPI_Datatype register_datatype() {
-        MPI_Datatype element_datatype, vec_datatype, oldtype_element[2];
 
-        MPI_Aint offset[2], lb, intex;
-
-        int blockcount_element[2];
-
-        // register particle element type
-        constexpr int array_size = N;
-        constexpr auto mpi_raw_datatype = UseDoublePrecision ? MPI_DOUBLE : MPI_FLOAT;
-
-        MPI_Type_contiguous(array_size, mpi_raw_datatype, &vec_datatype);
-
-        MPI_Type_commit(&vec_datatype);
-
-        blockcount_element[0] = 2; //gid, lid
-        blockcount_element[1] = 2; //position, velocity
-
-        oldtype_element[0] = MPI_LONG_LONG;
-        oldtype_element[1] = vec_datatype;
-
-        MPI_Type_get_extent(MPI_LONG_LONG, &lb, &intex);
-
-        offset[0] = static_cast<MPI_Aint>(0);
-        offset[1] = blockcount_element[0] * intex;
-
-        MPI_Type_create_struct(2, blockcount_element, offset, oldtype_element, &element_datatype);
-
-        MPI_Type_commit(&element_datatype);
-
-        return element_datatype;
-    }
 }
 
 #endif //NBMPI_GEOMETRIC_ELEMENT_HPP

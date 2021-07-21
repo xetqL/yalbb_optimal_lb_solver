@@ -7,11 +7,11 @@
 #include <yalbb/params.hpp>
 
 struct param_t : public sim_param_t {
-    float eps_lj;       /* Strength for L-J (1)       */
-    float sig_lj;       /* Radius for L-J   (1e-2)    */
-    float G;            /* Gravitational strength (1) */
-    float T0;           /* Initial temperature (1)    */
-    float bounce;       /* shock absorption factor (0=no bounce, 1=full bounce) */
+    float eps_lj{};       /* Strength for L-J (1)       */
+    float sig_lj{};       /* Radius for L-J   (1e-2)    */
+    float G{};            /* Gravitational strength (1) */
+    float T0{};           /* Initial temperature (1)    */
+    float bounce{};       /* shock absorption factor (0=no bounce, 1=full bounce) */
 };
 
 template<class T>

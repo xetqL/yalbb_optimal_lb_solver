@@ -448,7 +448,6 @@ public:
         }
     }
 };
-
 template<int N>
 class ParticleWallRandomElementsGenerator : public RandomElementsGenerator<N> {
         int seed;
@@ -791,7 +790,6 @@ namespace pos {
             return p;
         }
     };
-
     template<int N> struct LoadFromFile {
         std::ifstream infile;
         std::string   header;
