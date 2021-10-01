@@ -4,6 +4,7 @@
 
 #ifndef YALBB_LB_NORCB_H
 #define YALBB_LB_NORCB_H
+
 #include <yalbb/load_balancing.hpp>
 #include "norcb.hpp"
 #include "spatial_elements.hpp"
