@@ -4,10 +4,10 @@
 
 #ifndef YALBB_EXAMPLE_EXPERIENCE_HPP
 #define YALBB_EXAMPLE_EXPERIENCE_HPP
-#include "spatial_elements.hpp"
 
+#include "spatial_elements.hpp"
 #include "initial_conditions.hpp"
-#include <yalbb/experiment.hpp>
+#include  <yalbb/experiment.hpp>
 
 namespace experiment {
 

@@ -1,18 +1,8 @@
 cmake_minimum_required(VERSION 3.15)
 project(yalbb)
 
-add_subdirectory(NoRCB)
 add_subdirectory(yalbb)
-
-set(YALBB_DIMENSION "2" CACHE STRING "number of dimensions")
-
-add_compile_definitions(YALBB_DIMENSION=${YALBB_DIMENSION})
-
-find_package( CGAL QUIET COMPONENTS  )
-if ( NOT CGAL_FOUND )
-    message(STATUS "This project requires the CGAL library, and will not be compiled.")
-    return()
-endif()
+add_subdirectory(NoRCB)
 
 # Set compiler params
 set(CMAKE_CXX_STANDARD 17)
@@ -57,25 +47,13 @@ find_path(ZOLTAN_INCLUDE_DIRECTORY NAMES zoltan.h HINTS ${ZOLTAN_INSTALL_FOLDER}
 
 # additional lib
 set(UF_INCLUDE_DIR useful-algorithms/include)
+
 set(NORCB_INCLUDE_DIR ${CMAKE_CURRENT_LIST_DIR}/NoRCB/include)
 
-include_directories(src ${NORCB_INCLUDE_DIR} yalbb/zupply/src ${MPI_INCLUDE_PATH} yalbb/include ${ZOLTAN_INCLUDE_DIRECTORY} ${UF_INCLUDE_DIR})
+include_directories(src yalbb/zupply/src ${MPI_INCLUDE_PATH} yalbb/include ${ZOLTAN_INCLUDE_DIRECTORY} ${UF_INCLUDE_DIR})
 
 # paper JPDC on Optimal Load Balancing
-add_subdirectory(experiments/Compression)
-add_subdirectory(experiments/Expansion)
-add_subdirectory(experiments/ExpansionCompression)
+add_subdirectory(experiments/JPDC)
 
-# paper NoRCB
-add_subdirectory(experiments/BlackHoles)
-add_subdirectory(experiments/Gravity)
-add_subdirectory(experiments/ContractingCircles)
-
-# others
-add_subdirectory(experiments/Collision)
-add_subdirectory(experiments/NoRCBBenchmark)
-add_subdirectory(experiments/GravityCircle)
-add_subdirectory(experiments/ExpandingCircles)
-add_subdirectory(experiments/PaperExampleExp)
-add_subdirectory(experiments/GravityThesisExample)
-
+# paper JOCS
+add_subdirectory(experiments/JOCS)

@@ -1,0 +1,5 @@
+add_compile_definitions(YALBB_DIMENSION=3)
+
+add_subdirectory(Compression)
+add_subdirectory(Expansion)
+add_subdirectory(ExpansionCompression)
