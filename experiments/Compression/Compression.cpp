@@ -37,14 +37,11 @@ int main(int argc, char** argv) {
 
     run<N, elements::Element<N>, Zoltan_Struct>(yalbb, params.get(), exp, boundary, "HSFC", datatype, getPositionPtrFunc, getVelocityPtrFunc,binaryForce, unaryForce, [APP_COMM=yalbb.comm](){
         float ver;
-
         const char* LB_METHOD = "HSFC";
-
         if(Zoltan_Initialize(0, nullptr, &ver) != ZOLTAN_OK) {
             MPI_Finalize();
             exit(EXIT_FAILURE);
         }
-
         auto zz = Zoltan_Create(APP_COMM);
 
         Zoltan_Set_Param(zz, "DEBUG_LEVEL", "0");
@@ -124,7 +121,6 @@ int main(int argc, char** argv) {
 
         return zz;
     });
-
 
     return EXIT_SUCCESS;
 }

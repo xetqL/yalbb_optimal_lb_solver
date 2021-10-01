@@ -19,7 +19,8 @@ namespace elements {
 
     using Real = Real;
     using Index = Integer;
-    template<int N> struct Element {
+
+    template<unsigned N> struct Element {
         static const auto dimension = N;
 
         Index gid;
@@ -29,82 +30,6 @@ namespace elements {
         constexpr Element(std::array<Real, N> p, std::array<Real, N> v, const Index gid, const Index lid) : gid(gid), lid(lid), position(p), velocity(v) {}
 
         constexpr Element() : gid(0), lid(0), position(), velocity() {}
-
-        static constexpr auto byte_size() {
-            return sizeof(class elements::Element<N>);
-        }
-
-        static Element<N> create(std::array<Real, N> &p, std::array<Real, N> &v, Index gid, Index lid){
-            Element<N> e(p, v, gid, lid);
-            return e;
-        }
-
-        template<class Distribution, class Generator>
-        static Element<N> create_random( Distribution& dist, Generator &gen, Index gid, Index lid){
-            std::array<Real, N> p, v;
-            std::generate(p.begin(), p.end(), [&dist, &gen](){return dist(gen);});
-            std::generate(v.begin(), v.end(), [&dist, &gen](){return dist(gen);});
-            return Element::create(p, v, gid, lid);
-        }
-
-
-        template<class Distribution, class Generator, class RejectionPredicate>
-        static Element<N> create_random( Distribution& dist, Generator &gen, Index gid, Index lid, RejectionPredicate pred){
-            std::array<Real, N> p, v;
-            //generate point in N dimension
-            int trial = 0;
-            do {
-                if(trial >= 1000) throw std::runtime_error("Could not generate particles that satisfy the predicate. Try another distribution.");
-                std::generate(p.begin(), p.end(), [&dist, &gen](){return dist(gen);});
-                trial++;
-            } while(!pred(p));
-            //generate velocity in N dimension
-            std::generate(v.begin(), v.end(), [&dist, &gen](){return dist(gen);});
-            return Element::create(p, v, gid, lid);
-        }
-
-        template<class Distribution, class Generator, int Cnt>
-        static std::array<Element<N>, Cnt> create_random_n( Distribution& dist, Generator &gen ){
-            std::array<Element<N>, Cnt> elements;
-            Index id = 0;
-            std::generate(elements.begin(), elements.end(), [&]()mutable {
-                return Element<N>::create_random(dist, gen, id, id++);
-            });
-            return elements;
-        }
-
-        template<class Container, class Distribution, class Generator>
-        static void create_random_n(Container &elements, Distribution& dist, Generator &gen ) {
-            Index id = 0;
-            std::generate(elements.begin(), elements.end(), [&]()mutable {
-                return Element<N>::create_random(dist, gen, id, id++);
-            });
-        }
-
-        template<class Container, class Distribution, class Generator, class RejectionPredicate>
-        static void create_random_n(Container &elements, Distribution& dist, Generator &gen, RejectionPredicate pred ) {
-            //apply rejection sampling using the predicate given in parameter
-            //construct a new function that does the work
-            Index id = 0;
-            std::generate(elements.begin(), elements.end(), [&]() mutable {
-                return Element<N>::create_random(dist, gen, id, id++, [&elements, pred](auto const el) {
-                       return std::all_of(elements.begin(), elements.end(), [&](auto p){return pred(p.position, el);});
-                });
-            });
-        }
-
-        /**
-         * Equality of two elements regarding the VALUE of their properties
-         * @param rhs another element
-         * @return true if the position and the velocity of the two elements are equals
-         */
-        bool operator==(const Element &rhs) const {
-            return position == rhs.position && velocity == rhs.velocity && gid == rhs.gid;
-        }
-
-        bool operator!=(const Element &rhs) const {
-            return !(rhs == *this);
-        }
 
         friend std::ostream &operator<<(std::ostream &os, const Element &element) {
             os << element.position.at(0);
@@ -118,41 +43,6 @@ namespace elements {
             }
             os << element.gid << ";" << element.lid;
             return os;
-        }
-
-        bool operator<(const Element &rhs) const {
-            return gid < rhs.gid;
-        }
-
-        bool operator>(const Element &rhs) const {
-            return rhs < *this;
-        }
-
-        bool operator<=(const Element &rhs) const {
-            return !(rhs < *this);
-        }
-
-        bool operator>=(const Element &rhs) const {
-            return !(*this < rhs);
-        }
-
-        std::string to_string(Real lsub) {
-            std::string pos = std::to_string(this->position.at(0));
-            for(int i = 1; i < N; i++){
-                pos += " " + std::to_string(this->position.at(i));
-            }
-
-            std::string idx = std::to_string(std::floor(this->position.at(0) / lsub));
-            for(int i = 1; i < N; i++){
-                idx += " " + std::to_string(std::floor(this->position.at(i) / lsub));
-            }
-
-            std::string vel = std::to_string(this->velocity.at(0));
-            for(int i = 1; i < N; i++){
-                vel += " " + std::to_string(this->velocity.at(i));
-            }
-
-            return "(" + pos + ") " + "(" + idx + ") " + "(" + vel + ") " + std::to_string(this->gid) + ";";
         }
 
         inline static MPI_Datatype register_datatype() {

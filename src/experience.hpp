@@ -11,15 +11,6 @@
 
 namespace experiment {
 
-namespace {
-    template<unsigned N>
-    struct MDAllocator {
-        virtual std::unique_ptr<MESH_DATA<elements::Element<N>>> alloc() override {
-            return std::make_unique<MESH_DATA<elements::Element<N>>>();
-        }
-    };
-}
-
 template<unsigned N, class TParam> class Gravitation : public Experiment<N, MESH_DATA<elements::Element<N>>, TParam>{
 protected:
     void setup(MESH_DATA<elements::Element<N>> *mesh_data) override {
@@ -29,25 +20,20 @@ protected:
                                      pos::UniformInSphere<N>(this->params->simsize / 2.0, box_center),
                                      vel::PerpendicularTo(this->params->T0, box_center), MPI_COMM_WORLD);
     }
-    std::unique_ptr<MESH_DATA<elements::Element<N>>> alloc() override {
-        return std::make_unique<MESH_DATA<elements::Element<N>>>();
-    }
+
 public:
     Gravitation(const BoundingBox<N> &simbox, const std::unique_ptr<TParam>& params, MPI_Datatype datatype,
                 MPI_Comm appComm, const std::string &name)
             : Experiment<N, MESH_DATA<elements::Element<N>>, TParam>(simbox, params, datatype, appComm, name) {}
 };
 
-template<unsigned N, class TParam> class UniformCube : public Experiment<N, MESH_DATA<elements::Element<N>>, TParam>{
+template<unsigned N, class TParam> class UniformCube : public Experiment<N, MESH_DATA<elements::Element<N>>, TParam> {
 protected:
     void setup(MESH_DATA<elements::Element<N>> *mesh_data) override {
         decltype(this->simbox) box = {0.0, this->params->simsize, this->params->simsize/2.0, this->params->simsize};
         generate_random_particles<N>(mesh_data, this->rank, this->params->seed, this->params->npart,
                  pos::UniformInCube<N>(box),
                  vel::Uniform<N>(-this->params->T0), MPI_COMM_WORLD);
-    }
-    std::unique_ptr<MESH_DATA<elements::Element<N>>> alloc() override {
-            return std::make_unique<MESH_DATA<elements::Element<N>>>();
     }
 public:
     UniformCube(const BoundingBox<N> &simbox, const std::unique_ptr<TParam>& params, MPI_Datatype datatype,
@@ -65,9 +51,7 @@ protected:
                                   vel::ContractToPoint<N>(this->params->T0, box_center));
 
     }
-    std::unique_ptr<MESH_DATA<elements::Element<N>>> alloc() override {
-            return std::make_unique<MESH_DATA<elements::Element<N>>>();
-    }
+
 public:
     ContractSphere(const BoundingBox<N> &simbox, const std::unique_ptr<TParam>& params, MPI_Datatype datatype,
                      MPI_Comm appComm, const std::string &name)
@@ -84,9 +68,7 @@ protected:
                                      vel::ExpandFromPoint<N>(this->params->T0, box_center));
 
     }
-    std::unique_ptr<MESH_DATA<elements::Element<N>>> alloc() override {
-            return std::make_unique<MESH_DATA<elements::Element<N>>>();
-    }
+
 public:
     ExpandSphere(const BoundingBox<N> &simbox, const std::unique_ptr<TParam>& params, MPI_Datatype datatype,
                      MPI_Comm appComm, const std::string &name)
@@ -103,9 +85,7 @@ protected:
                                      vel::ParallelToAxis<N, 1>(-this->params->T0));
 
     }
-    std::unique_ptr<MESH_DATA<elements::Element<N>>> alloc() override {
-            return std::make_unique<MESH_DATA<elements::Element<N>>>();
-    }
+
 public:
     GravityCircle(const BoundingBox<N> &simbox, const std::unique_ptr<TParam>& params, MPI_Datatype datatype,
                  MPI_Comm appComm, const std::string &name)
@@ -126,9 +106,7 @@ protected:
                                      pos::UniformInSphere<N>(this->params->simsize / 6, sphere_center_2),
                                      vel::ExpandFromPoint<N>(this->params->T0, sphere_center_2));
     }
-    std::unique_ptr<MESH_DATA<elements::Element<N>>> alloc() override {
-            return std::make_unique<MESH_DATA<elements::Element<N>>>();
-    }
+
 public:
     ExpandingCircles(const BoundingBox<N> &simbox, const std::unique_ptr<TParam>& params, MPI_Datatype datatype,
                   MPI_Comm appComm, const std::string &name)
@@ -149,9 +127,7 @@ protected:
                                      pos::UniformInSphere<N>(this->params->simsize / 6, sphere_center_2),
                                      vel::ContractToPoint<N>(this->params->T0, sphere_center_2));
     }
-    std::unique_ptr<MESH_DATA<elements::Element<N>>> alloc() override {
-            return std::make_unique<MESH_DATA<elements::Element<N>>>();
-    }
+
 public:
     ContractingCircles(const BoundingBox<N> &simbox, const std::unique_ptr<TParam>& params, MPI_Datatype datatype,
                      MPI_Comm appComm, const std::string &name)
@@ -173,9 +149,7 @@ protected:
                                      pos::UniformInCube<N>(box2),
                                      vel::ParallelToAxis<N, 0>(-this->params->T0));
     }
-    std::unique_ptr<MESH_DATA<elements::Element<N>>> alloc() override {
-            return std::make_unique<MESH_DATA<elements::Element<N>>>();
-    }
+
 public:
     HalfUniformHalfOrthogonal(const BoundingBox<N> &simbox, const std::unique_ptr<TParam>& params, MPI_Datatype datatype,
                        MPI_Comm appComm, const std::string &name)
@@ -197,9 +171,7 @@ protected:
                                      pos::EquidistantOnDisk<N>(this->rank * this->params->npart / (2 * this->nproc), 0.005, box_center + shift, 0.0),
                                      vel::ParallelToAxis<N, 0>(-this->params->T0), this->APP_COMM);
     }
-    std::unique_ptr<MESH_DATA<elements::Element<N>>> alloc() override {
-            return std::make_unique<MESH_DATA<elements::Element<N>>>();
-    }
+
 public:
     CollidingSpheres(const BoundingBox<N> &simbox, const std::unique_ptr<TParam>& params, MPI_Datatype datatype,
                      MPI_Comm appComm, const std::string &name)

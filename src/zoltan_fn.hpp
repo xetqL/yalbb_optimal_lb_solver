@@ -21,7 +21,7 @@
 
 template<int N>
 int get_number_of_objects(void *data, int *ierr) {
-    MESH_DATA<elements::Element<N>> *mesh= (MESH_DATA<elements::Element<N>> *)data;
+    auto *mesh= (MESH_DATA<elements::Element<N>> *)data;
     *ierr = ZOLTAN_OK;
     return mesh->els.size();
 }
@@ -135,7 +135,7 @@ void post_migrate_particles (
     }
 }
 
-template<int N>
+template<unsigned N>
 void zoltan_fn_init(Zoltan_Struct* zz, MESH_DATA<elements::Element<N>>* mesh_data){
     Zoltan_Set_Num_Obj_Fn(     zz, get_number_of_objects<N>,  mesh_data);
     Zoltan_Set_Obj_List_Fn(    zz, get_object_list<N>,        mesh_data);
@@ -147,7 +147,7 @@ void zoltan_fn_init(Zoltan_Struct* zz, MESH_DATA<elements::Element<N>>* mesh_dat
     Zoltan_Set_Post_Migrate_Fn(zz, post_migrate_particles<N>, mesh_data);
 }
 
-template<int N>
+template<unsigned N>
 typename std::vector<elements::Element<N>>::const_iterator zoltan_migrate_particles(
         std::vector<elements::Element<N>> &data,
         Zoltan_Struct *load_balancer,

@@ -12,15 +12,66 @@
 #include "norcb.hpp"
 
 namespace lb {
+//template<> struct InitLB<YourPartitioner> {
+//    template<class MD> void operator() (YourPartitioner* lb, MD* md) {/* Init your partitioner */}
+//};
+//template<> struct DoPartition<YourPartitioner> {
+//    template<class MD> void operator() (YourPartitioner* lb, MD* md) {/* Do the partitioning */}};
+//template<> struct IntersectDomain<YourPartitioner> {
+//    Real rc {};
+//    void operator() (YourPartitioner* zlb, double x1, double y1, double z1,
+//            double x2, double y2, double z2, int* PEs, int* num_found) const
+//            { /* Intersect the cube with the sub-domains */ }
+//};
+//template<> struct AssignPoint<YourPartitioner> {
+//    template<class El> void operator() (YourPartitioner* zlb, const El* e, int* PE) {/* Get the owner of e */}
+//
+//};
+//template<> struct Copier<YourPartitioner> {
+//    YourPartitioner* operator() (YourPartitioner* zlb) {/* Make a clone of the partitioner */}
+//};
+//template<> struct Destroyer<YourPartitioner> {
+//    void operator() (YourPartitioner* zlb) {/* Destroy your partitioner */}
+//};
 
-template<> struct InitLB<StripeLB> {
-    template<class MD>
-    void operator() (StripeLB* lb, MD* md) {}
+template<> struct InitLB<StripeLB> { template<class MD> void operator() (StripeLB* lb, MD* md) {} };
+template<> struct DoPartition<StripeLB> {
+    template<class MD, class GetPosPtrF> void operator() (StripeLB* lb, MD* md, GetPosPtrF getPositionPtrFunc) {
+            lb->partition<StripeLB::CUT_ALONG>(md->els, [](auto *e){ return &(e->position); });
+    }
 };
-template<> struct InitLB<norcb::NoRCB> {
-    template<class MD>
-    void operator() (norcb::NoRCB* lb, MD* md) {}
+template<> struct IntersectDomain<StripeLB> {
+    Real rc {};
+    void operator() (StripeLB* zlb, double x1, double y1, double z1, double x2, double y2, double z2, int* PEs, int* num_found) const {
+        auto neighbors = zlb->get_neighbors(zlb->rank, rc);
+        std::copy(neighbors.begin(), neighbors.end(), PEs);
+        *num_found = neighbors.size();
+    }
 };
+template<> struct AssignPoint<StripeLB> {
+    template<class El>
+            void operator() (StripeLB* zlb, const El* e, int* PE) {
+                zlb->lookup_domain<El::dimension, StripeLB::CUT_ALONG>(e->position.data(), PE);
+            }
+            void operator() (StripeLB* zlb, Real x, Real y, Real z, int* PE) {
+                Real pos[3] = {x,y,z};
+                zlb->lookup_domain<3, StripeLB::CUT_ALONG>(pos, PE);
+            }
+};
+template<> struct Copier<StripeLB> {
+    StripeLB* operator() (StripeLB* zlb) {
+        return allocate_from(zlb);
+    }
+};
+template<> struct Destroyer<StripeLB> {
+    void operator() (StripeLB* zlb) {
+        destroy(zlb);
+    }
+};
+
+
+
+template<> struct InitLB<norcb::NoRCB> { template<class MD> void operator() (norcb::NoRCB* lb, MD* md) {} };
 template<> struct InitLB<rcb::RCB> {
     template<class MD>
     void operator() (rcb::RCB* lb, MD* md) {}
@@ -32,12 +83,7 @@ template<> struct InitLB<Zoltan_Struct> {
     }
 };
 
-template<> struct DoPartition<StripeLB> {
-    template<class MD, class GetPosPtrF>
-    void operator() (StripeLB* lb, MD* md, GetPosPtrF getPositionPtrFunc) {
-        lb->partition<StripeLB::CUT_ALONG>(md->els, [](auto *e){ return &(e->position); });
-    }
-};
+
 template<> struct DoPartition<norcb::NoRCB> {
     template<class MD, class GetPosPtrF>
     void operator() (norcb::NoRCB* lb, MD* md, GetPosPtrF getPositionPtrFunc) {
@@ -86,14 +132,6 @@ template<> struct IntersectDomain<rcb::RCB> {
         END_TIMER(functime);
     }
 };
-template<> struct IntersectDomain<StripeLB> {
-    Real rc {};
-    void operator() (StripeLB* zlb, double x1, double y1, double z1, double x2, double y2, double z2, int* PEs, int* num_found) const {
-        auto neighbors = zlb->get_neighbors(zlb->rank, rc);
-        std::copy(neighbors.begin(), neighbors.end(), PEs);
-        *num_found = neighbors.size();
-    }
-};
 template<> struct IntersectDomain<Zoltan_Struct> {
     Real rc;
 
@@ -128,18 +166,8 @@ template<> struct AssignPoint<rcb::RCB> {
         zlb->get_owner(x, y, PE);
     }
 };
-template<> struct AssignPoint<StripeLB> {
-    template<class El>
-    void operator() (StripeLB* zlb, const El* e, int* PE) {
-        zlb->lookup_domain<El::dimension, StripeLB::CUT_ALONG>(e->position.data(), PE);
-    }
-    void operator() (StripeLB* zlb, Real x, Real y, Real z, int* PE) {
-        Real pos[3] = {x,y,z};
-        zlb->lookup_domain<3, StripeLB::CUT_ALONG>(pos, PE);
-    }
-};
 template<> struct AssignPoint<Zoltan_Struct> {
-    template<int N=3>
+    template<unsigned N=3>
     void operator() (Zoltan_Struct* zlb, const elements::Element<N>* e, int* PE) {
         auto pos_in_double = get_as_double_array<N>(e->position);
         Zoltan_LB_Point_Assign(zlb, &pos_in_double.front(), PE);
@@ -161,11 +189,6 @@ template<> struct Copier<rcb::RCB> {
         return rcb::allocate_from(zlb);
     }
 };
-template<> struct Copier<StripeLB> {
-    StripeLB* operator() (StripeLB* zlb) {
-        return allocate_from(zlb);
-    }
-};
 template<> struct Copier<Zoltan_Struct> {
     Zoltan_Struct* operator() (Zoltan_Struct* zlb) {
         return Zoltan_Copy(zlb);
@@ -180,11 +203,6 @@ template<> struct Destroyer<norcb::NoRCB> {
 template<> struct Destroyer<rcb::RCB> {
     void operator() (rcb::RCB* zlb) {
         rcb::destroy(zlb);
-    }
-};
-template<> struct Destroyer<StripeLB> {
-    void operator() (StripeLB* zlb) {
-        destroy(zlb);
     }
 };
 template<> struct Destroyer<Zoltan_Struct> {

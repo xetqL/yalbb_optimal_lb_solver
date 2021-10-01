@@ -77,4 +77,5 @@ add_subdirectory(experiments/NoRCBBenchmark)
 add_subdirectory(experiments/GravityCircle)
 add_subdirectory(experiments/ExpandingCircles)
 add_subdirectory(experiments/PaperExampleExp)
+add_subdirectory(experiments/GravityThesisExample)
 

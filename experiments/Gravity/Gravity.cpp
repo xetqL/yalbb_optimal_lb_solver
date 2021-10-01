@@ -17,28 +17,23 @@ int main(int argc, char** argv) {
     const auto center = get_box_center<N>(simbox);
 
     Boundary<N> boundary = CubicalBoundary<N>{simbox, 1.0};
-
     auto unaryForce = [G=params->G](const auto& element, auto fbegin) {
         *(fbegin + 1) += -G;
     };
-
-    auto binaryForce = [eps=params->eps_lj, sig=params->sig_lj, rc=params->rc](const auto* receiver, const auto* source)->std::array<Real, N>{
-        auto getPosFunc = [](auto* e) { return &(e->position); } ;
-        return lj_compute_force<N>(receiver, source, eps, sig*sig, rc, getPosFunc);
+    auto binaryForce = [eps=params->eps_lj, sig=params->sig_lj, rc=params->rc](const auto* receiver, const auto* source) ->std::array<Real, N> {
+        return lj_compute_force<N>(receiver, source, eps, sig*sig, rc, elements::Element<N>::getElementPositionPtr);
     };
-
     experiment::UniformCube<N, param_t> exp(simbox, params, elements::Element<N>::register_datatype(), MPI_COMM_WORLD, "Gravity");
 
     auto datatype           = elements::Element<N>::register_datatype();
     auto getPositionPtrFunc = elements::Element<N>::getElementPositionPtr;
     auto getVelocityPtrFunc = elements::Element<N>::getElementVelocityPtr;
 
-    run<N, elements::Element<N>, norcb::NoRCB>(yalbb, params.get(), exp, boundary, "NoRCB", datatype, getPositionPtrFunc, getVelocityPtrFunc, binaryForce, unaryForce, [APP_COMM=yalbb.comm, &params](){
+    run<N, norcb::NoRCB>(yalbb, params.get(), exp, boundary, "NoRCB", datatype, getPositionPtrFunc, getVelocityPtrFunc, binaryForce, unaryForce, [APP_COMM=yalbb.comm, &params](){
         return new norcb::NoRCB(init_domain<Real>(
                 -params->simsize, -params->simsize, 2*params->simsize, 2*params->simsize), APP_COMM);
     });
-
-    run<N, elements::Element<N>, Zoltan_Struct>(yalbb, params.get(), exp, boundary, "HSFC", datatype, getPositionPtrFunc, getVelocityPtrFunc,binaryForce, unaryForce, [APP_COMM=yalbb.comm](){
+    run<N, Zoltan_Struct>(yalbb, params.get(), exp, boundary, "HSFC", datatype, getPositionPtrFunc, getVelocityPtrFunc,binaryForce, unaryForce,  [APP_COMM=yalbb.comm](){
         float ver;
 
         const char* LB_METHOD = "HSFC";
@@ -67,8 +62,7 @@ int main(int argc, char** argv) {
 
         return zz;
     });
-
-    run<N, elements::Element<N>, Zoltan_Struct>(yalbb, params.get(), exp, boundary, "RCB", datatype, getPositionPtrFunc, getVelocityPtrFunc,binaryForce, unaryForce, [APP_COMM=yalbb.comm](){
+    run<N, Zoltan_Struct>(yalbb, params.get(), exp, boundary, "RCB", datatype, getPositionPtrFunc, getVelocityPtrFunc,binaryForce, unaryForce,   [APP_COMM=yalbb.comm](){
         float ver;
 
         const char* LB_METHOD = "RCB";
@@ -97,8 +91,7 @@ int main(int argc, char** argv) {
 
         return zz;
     });
-
-    run<N, elements::Element<N>, Zoltan_Struct>(yalbb, params.get(), exp, boundary, "RIB", datatype, getPositionPtrFunc, getVelocityPtrFunc,binaryForce, unaryForce, [APP_COMM=yalbb.comm](){
+    run<N, Zoltan_Struct>(yalbb, params.get(), exp, boundary, "RIB", datatype, getPositionPtrFunc, getVelocityPtrFunc,binaryForce, unaryForce,   [APP_COMM=yalbb.comm](){
         float ver;
 
         const char* LB_METHOD = "RIB";
