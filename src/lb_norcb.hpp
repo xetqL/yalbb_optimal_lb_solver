@@ -14,7 +14,7 @@ namespace lb {
     template<> struct DoPartition<norcb::NoRCB> {
         template<class MD, class GetPosPtrF>
         void operator() (norcb::NoRCB* lb, MD* md, GetPosPtrF getPositionPtrFunc) {
-            norcb::partition<Real>(lb, lb->world_size, md->els.begin(), md->els.end(),
+            norcb::do_partition<elements::Element<2>, Real>(lb, lb->world_size, md->els,
                                    elements::Element<2>::register_datatype(), lb->comm,
                                    [](auto* e){ return &(e->position);},
                                    [](auto* e){ return &(e->velocity);} );

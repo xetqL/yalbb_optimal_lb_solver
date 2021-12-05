@@ -35,7 +35,8 @@ int main(int argc, char** argv) {
 
     run<N, norcb::NoRCB>(yalbb, params.get(), exp, boundary, "NoRCB", datatype, getPositionPtrFunc, getVelocityPtrFunc, binaryForce, unaryForce, [APP_COMM=yalbb.comm, &params](){
         return new norcb::NoRCB(init_domain<Real>(
-                -params->simsize, -params->simsize, 2*params->simsize, 2*params->simsize), APP_COMM);
+                -params->simsize, -params->simsize, 2*params->simsize, 2*params->simsize),
+                                APP_COMM);
     });
 
     run<N, Zoltan_Struct>(yalbb, params.get(), exp, boundary, "HSFC", datatype, getPositionPtrFunc, getVelocityPtrFunc,binaryForce, unaryForce, [APP_COMM=yalbb.comm](){
