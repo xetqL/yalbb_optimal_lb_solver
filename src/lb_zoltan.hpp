@@ -25,13 +25,13 @@ namespace lb {
         Real rc;
 
         void operator() (Zoltan_Struct* zlb, double x1, double y1, double z1, double x2, double y2, double z2, int* PEs, int* num_found) {
-            double bsize = rc;
-            Zoltan_LB_Box_Assign(zlb, x1-bsize,
-                                 y1-bsize,
-                                 z1-bsize,
-                                 x2+bsize,
-                                 y2+bsize,
-                                 z2+bsize,
+            Zoltan_LB_Box_Assign(zlb,
+                                 x1,
+                                 y1,
+                                 z1,
+                                 x2,
+                                 y2,
+                                 z2,
                                  PEs, num_found);
         }
 

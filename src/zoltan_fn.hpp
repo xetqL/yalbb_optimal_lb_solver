@@ -52,7 +52,7 @@ void get_geometry_list(void *data, int sizeGID, int sizeLID,
                        int num_obj,
                        ZOLTAN_ID_PTR globalID, ZOLTAN_ID_PTR localID,
                        int num_dim, double *geom_vec, int *ierr) {
-    int i;
+    unsigned int i;
 
     auto mesh= (MESH_DATA<elements::Element<N>> *)data;
 
@@ -63,10 +63,14 @@ void get_geometry_list(void *data, int sizeGID, int sizeLID,
 
     *ierr = ZOLTAN_OK;
 
-    for (i=0;  i < num_obj; i++){
-        geom_vec[N * i] = mesh->els[i].position.at(0);
-        geom_vec[N * i + 1] = mesh->els[i].position.at(1);
-        if constexpr(N == 3) geom_vec[N * i + 2] = mesh->els[i].position.at(2);
+    for (int obj_idx=0;  i < num_obj; i++){
+        i = localID[i];
+        if ((i < 0) || (i >= mesh->els.size())) {
+            *ierr = 1; return;
+        }
+        geom_vec[N * obj_idx] = mesh->els[i].position.at(0);
+        geom_vec[N * obj_idx + 1] = mesh->els[i].position.at(1);
+        if constexpr(N == 3) geom_vec[N * obj_idx + 2] = mesh->els[i].position.at(2);
     }
 }
 
@@ -142,9 +146,6 @@ void zoltan_fn_init(Zoltan_Struct* zz, MESH_DATA<elements::Element<N>>* mesh_dat
     Zoltan_Set_Num_Geom_Fn(    zz, get_num_geometry<N>,       mesh_data);
     Zoltan_Set_Geom_Multi_Fn(  zz, get_geometry_list<N>,      mesh_data);
     Zoltan_Set_Obj_Size_Fn(    zz, cpt_obj_size<N>,           mesh_data);
-    Zoltan_Set_Pack_Obj_Fn(    zz, pack_particles<N>,         mesh_data);
-    Zoltan_Set_Unpack_Obj_Fn(  zz, unpack_particles<N>,       mesh_data);
-    Zoltan_Set_Post_Migrate_Fn(zz, post_migrate_particles<N>, mesh_data);
 }
 
 template<unsigned N>
